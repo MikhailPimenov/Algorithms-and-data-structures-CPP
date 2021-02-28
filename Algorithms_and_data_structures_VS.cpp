@@ -3,17 +3,17 @@
 
 #include <iostream>
 
-#include "lecture7/grand_common_divisor/grand_common_divisor2.h"
-#include "lecture7/grand_common_divisor/test_grand_common_divisor.h"
-#include "lecture7/power_fast/power_fast2.h"
-#include "lecture7/power_fast/test_power_fast.h"
+#include "lecture8/generate_numbers/generate_numbers2.h"
+#include "lecture8/generate_numbers/test_generate_numbers.h"
+#include "lecture8/generate_permutations/generate_permutations2.h"
+#include "lecture8/generate_permutations/test_generate_permutations.h"
 
 int main()
 {
-	std::cout << "\nlecture 7: grand_common_divisor\n";
-	test_grand_common_divisor(grand_common_divisor2);
-	std::cout << "\nlecture 7: power fast\n";
-	test_power_fast(power_fast2);
+	std::cout << "\nlecture 8: generate numbers\n";
+	test_generate_numbers(generate_numbers2);
+	std::cout << "\nlecture 8: generate permutations\n";
+	test_generate_permutations(generate_permutations2);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
