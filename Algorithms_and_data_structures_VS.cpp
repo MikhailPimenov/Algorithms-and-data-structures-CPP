@@ -2,18 +2,29 @@
 //
 
 #include <iostream>
-#include "lecture5/eratosthenes_sieve/eratosthenes_sieve2.h"
-#include "lecture5/eratosthenes_sieve/test_eratosthenes_sieve.h"
-#include "lecture5/invert_array/invert_array2.h"
-#include "lecture5/invert_array/test_invert_array.h"
+#include "common_tests/test_sort/test_sort.h"
+#include "lecture6/bubble_sort/bubble_sort2.h"
+#include "lecture6/insert_sort/insert_sort2.h"
+#include "lecture6/select_sort/select_sort2.h"
+#include "lecture9/hoar_sort/hoar_sort2.h"
+#include "lecture9/merge_sort/merge_sort2.h"
+#include "lecture19/heap_sort/heap_sort2.h"
+
 
 int main()
 {
-	std::cout << "\nlecture 5: eratosthenes sieve\n";
-	test_eratosthenes_sieve(eratosthenes_sieve2);
-
-	std::cout << "\nlecture 5: invert array\n";
-	test_invert_array(invert_array2);
+	std::cout << "\nlecture 6: bubble sort\n";
+	test_sort(bubble_sort2);
+	std::cout << "\nlecture 6: insert sort\n";
+	test_sort(insert_sort2);
+	std::cout << "\nlecture 6: select sort\n";
+	test_sort(select_sort2);
+	std::cout << "\nlecture 9: hoar sort\n";
+	test_sort(hoar_sort2);
+	std::cout << "\nlecture 9: merge sort\n";
+	test_sort(merge_sort2);
+	std::cout << "\nlecture 19: heap sort\n";
+	test_sort(heap_sort2);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
