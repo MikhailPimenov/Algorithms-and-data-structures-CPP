@@ -2,29 +2,18 @@
 //
 
 #include <iostream>
-#include "common_tests/test_sort/test_sort.h"
-#include "lecture6/bubble_sort/bubble_sort2.h"
-#include "lecture6/insert_sort/insert_sort2.h"
-#include "lecture6/select_sort/select_sort2.h"
-#include "lecture9/hoar_sort/hoar_sort2.h"
-#include "lecture9/merge_sort/merge_sort2.h"
-#include "lecture19/heap_sort/heap_sort2.h"
 
+#include "lecture7/grand_common_divisor/grand_common_divisor2.h"
+#include "lecture7/grand_common_divisor/test_grand_common_divisor.h"
+#include "lecture7/power_fast/power_fast2.h"
+#include "lecture7/power_fast/test_power_fast.h"
 
 int main()
 {
-	std::cout << "\nlecture 6: bubble sort\n";
-	test_sort(bubble_sort2);
-	std::cout << "\nlecture 6: insert sort\n";
-	test_sort(insert_sort2);
-	std::cout << "\nlecture 6: select sort\n";
-	test_sort(select_sort2);
-	std::cout << "\nlecture 9: hoar sort\n";
-	test_sort(hoar_sort2);
-	std::cout << "\nlecture 9: merge sort\n";
-	test_sort(merge_sort2);
-	std::cout << "\nlecture 19: heap sort\n";
-	test_sort(heap_sort2);
+	std::cout << "\nlecture 7: grand_common_divisor\n";
+	test_grand_common_divisor(grand_common_divisor2);
+	std::cout << "\nlecture 7: power fast\n";
+	test_power_fast(power_fast2);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
