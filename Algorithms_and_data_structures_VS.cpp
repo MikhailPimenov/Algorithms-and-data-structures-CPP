@@ -3,17 +3,13 @@
 
 #include <iostream>
 
-#include "lecture8/generate_numbers/generate_numbers2.h"
-#include "lecture8/generate_numbers/test_generate_numbers.h"
-#include "lecture8/generate_permutations/generate_permutations2.h"
-#include "lecture8/generate_permutations/test_generate_permutations.h"
+#include "lecture9/binary_search/binary_search2.h"
+#include "lecture9/binary_search/test_binary_search.h"
 
 int main()
 {
-	std::cout << "\nlecture 8: generate numbers\n";
-	test_generate_numbers(generate_numbers2);
-	std::cout << "\nlecture 8: generate permutations\n";
-	test_generate_permutations(generate_permutations2);
+	std::cout << "\nlecture 9: binary search\n";
+	test_binary_search(binary_search2);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
