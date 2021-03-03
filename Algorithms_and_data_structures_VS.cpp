@@ -3,13 +3,22 @@
 
 #include <iostream>
 
-#include "lecture9/binary_search/binary_search2.h"
-#include "lecture9/binary_search/test_binary_search.h"
+#include "lecture10/fibonacci/fibonacci2.h"
+#include "lecture10/fibonacci/test_fibonacci.h"
+#include "lecture10/trajectory_tracing/trajectory_tracing2.h"
+#include "lecture10/trajectory_tracing/test_trajectory_tracing.h"
 
 int main()
 {
-	std::cout << "\nlecture 9: binary search\n";
-	test_binary_search(binary_search2);
+	std::cout << "\nlecture 10: trajectory tracing\n";
+	test_trajectory_tracing(trajectory_tracing2);
+	std::cout << "\nlecture 10: fibonacci recursive\n";
+	test_fibonacci(fibonacci2);
+	std::cout << "\nlecture 10: fibonacci rucursive with cache\n";
+	Fibonacci2::initialize_cache(Fibonacci2::cache, 100);
+	test_fibonacci(fibonacci_cached2);
+	std::cout << "\nlecture 10: fibonacci dynamic programming\n";
+	test_fibonacci(fibonacci_fast2);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
