@@ -3,22 +3,21 @@
 
 #include <iostream>
 
-#include "lecture10/fibonacci/fibonacci2.h"
-#include "lecture10/fibonacci/test_fibonacci.h"
-#include "lecture10/trajectory_tracing/trajectory_tracing2.h"
-#include "lecture10/trajectory_tracing/test_trajectory_tracing.h"
+#include "lecture11/chess_queen/chess_queen2.h"
+#include "lecture11/chess_queen/test_chess_queen.h"
+#include "lecture11/longest_common_subsequence/longest_common_subsequence2.h"
+#include "lecture11/longest_common_subsequence/test_longest_common_subsequence.h"
+#include "lecture11/longest_increasing_subsequence/longest_increasing_subsequence2.h"
+#include "lecture11/longest_increasing_subsequence/test_longest_increasing_subsequence.h"
 
 int main()
 {
-	std::cout << "\nlecture 10: trajectory tracing\n";
-	test_trajectory_tracing(trajectory_tracing2);
-	std::cout << "\nlecture 10: fibonacci recursive\n";
-	test_fibonacci(fibonacci2);
-	std::cout << "\nlecture 10: fibonacci rucursive with cache\n";
-	Fibonacci2::initialize_cache(Fibonacci2::cache, 100);
-	test_fibonacci(fibonacci_cached2);
-	std::cout << "\nlecture 10: fibonacci dynamic programming\n";
-	test_fibonacci(fibonacci_fast2);
+	std::cout << "\nlecture 11: chess queen\n";
+	test_chess_queen(chess_queen2);
+	std::cout << "\nlecture 11: longest common subsequence\n";
+	test_longest_common_subsequence(longest_common_subsequence2);
+	std::cout << "\nlecture 11: longest increasing subsequence\n";
+	test_longest_increasing_subsequence(longest_increasing_subsequence2);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
