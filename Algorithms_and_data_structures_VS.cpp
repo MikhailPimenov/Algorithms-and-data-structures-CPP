@@ -3,21 +3,24 @@
 
 #include <iostream>
 
-#include "lecture11/chess_queen/chess_queen2.h"
-#include "lecture11/chess_queen/test_chess_queen.h"
-#include "lecture11/longest_common_subsequence/longest_common_subsequence2.h"
-#include "lecture11/longest_common_subsequence/test_longest_common_subsequence.h"
-#include "lecture11/longest_increasing_subsequence/longest_increasing_subsequence2.h"
-#include "lecture11/longest_increasing_subsequence/test_longest_increasing_subsequence.h"
+#include "lecture12/levenstein/levenstein2.h"
+#include "lecture12/levenstein/test_levenstein.h"
+#include "lecture12/knuth_morris_pratt/p_function2.h"
+#include "lecture12/knuth_morris_pratt/test_p_function.h"
+#include "lecture12/knuth_morris_pratt/knuth_morris_pratt2.h"
+#include "lecture12/knuth_morris_pratt/test_find_substring.h"
+
 
 int main()
 {
-	std::cout << "\nlecture 11: chess queen\n";
-	test_chess_queen(chess_queen2);
-	std::cout << "\nlecture 11: longest common subsequence\n";
-	test_longest_common_subsequence(longest_common_subsequence2);
-	std::cout << "\nlecture 11: longest increasing subsequence\n";
-	test_longest_increasing_subsequence(longest_increasing_subsequence2);
+	std::cout << "\nlecture 12: levenstein\n";
+	test_levenstein(levenstein_adapted2);
+
+	std::cout << "\nlecture 12: p_function\n";
+	test_p_function(p_function2);
+
+	std::cout << "\nlecture 12: knuth_morris_pratt2\n";
+	test_find_substring(knuth_morris_pratt2);
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
