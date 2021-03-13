@@ -3,24 +3,20 @@
 
 #include <iostream>
 
-#include "lecture12/levenstein/levenstein2.h"
-#include "lecture12/levenstein/test_levenstein.h"
-#include "lecture12/knuth_morris_pratt/p_function2.h"
-#include "lecture12/knuth_morris_pratt/test_p_function.h"
-#include "lecture12/knuth_morris_pratt/knuth_morris_pratt2.h"
-#include "lecture12/knuth_morris_pratt/test_find_substring.h"
-
+#include "lecture13/brace_sequence/brace_sequence2.h"
+#include "lecture13/brace_sequence/test_brace_sequence.h"
+#include "lecture13/reversed_polish_notation/reversed_polish_notation2.h"
+#include "lecture13/reversed_polish_notation/test_reversed_polish_notation.h"
 
 int main()
 {
-	std::cout << "\nlecture 12: levenstein\n";
-	test_levenstein(levenstein_adapted2);
+	std::cout << "\nlecture 13: brace sequence\n";
+	test_brace_sequence(brace_sequence_adapted2);
 
-	std::cout << "\nlecture 12: p_function\n";
-	test_p_function(p_function2);
+	std::cout << "\nlecture 13: reversed polish notation\n";
+	test_reversed_polish_notation(reversed_polish_notation2);
 
-	std::cout << "\nlecture 12: knuth_morris_pratt2\n";
-	test_find_substring(knuth_morris_pratt2);
+	return 0;
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
