@@ -3,18 +3,18 @@
 
 #include <iostream>
 
-#include "lecture13/brace_sequence/brace_sequence2.h"
-#include "lecture13/brace_sequence/test_brace_sequence.h"
-#include "lecture13/reversed_polish_notation/reversed_polish_notation2.h"
-#include "lecture13/reversed_polish_notation/test_reversed_polish_notation.h"
+#include "lecture17/discrete_bag/discrete_bag2.h"
+#include "lecture17/discrete_bag/test_discrete_bag.h"
+#include "lecture17/fibonacci_recursive_cash/fibonacci_recursive_cache2.h"
+#include "lecture17/fibonacci_recursive_cash/test_fibonacci_recursive_cash.h"
 
 int main()
 {
-	std::cout << "\nlecture 13: brace sequence\n";
-	test_brace_sequence(brace_sequence_adapted2);
-
-	std::cout << "\nlecture 13: reversed polish notation\n";
-	test_reversed_polish_notation(reversed_polish_notation2);
+	std::cout << "\nlecture 17: discrete bag\n";
+	test_discrete_bag(discrete_bag_adapted2);
+	std::cout << "\nlecture 17: fibonacci recursive cache\n";
+	Fibonacci_recursive_cache2::initialize_cache();
+	test_fibonacci_recursive_cash(fibonacci_recursive_cache2);
 
 	return 0;
 }
