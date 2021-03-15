@@ -2,20 +2,13 @@
 //
 
 #include <iostream>
-
-#include "lecture17/discrete_bag/discrete_bag2.h"
-#include "lecture17/discrete_bag/test_discrete_bag.h"
-#include "lecture17/fibonacci_recursive_cash/fibonacci_recursive_cache2.h"
-#include "lecture17/fibonacci_recursive_cash/test_fibonacci_recursive_cash.h"
+#include "lecture21/voting/election2.h"
+#include "lecture21/voting/test_voting.h"
 
 int main()
 {
-	std::cout << "\nlecture 17: discrete bag\n";
-	test_discrete_bag(discrete_bag_adapted2);
-	std::cout << "\nlecture 17: fibonacci recursive cache\n";
-	Fibonacci_recursive_cache2::initialize_cache();
-	test_fibonacci_recursive_cash(fibonacci_recursive_cache2);
-
+	std::cout << "\nlecture 21: election\n";
+	test_voting(election_adapted2);
 	return 0;
 }
 
