@@ -2,13 +2,28 @@
 //
 
 #include <iostream>
-#include "lecture21/voting/election2.h"
-#include "lecture21/voting/test_voting.h"
+#include "lecture23/adjacency_matrix/adjacency_matrix2.h"
+#include "lecture23/adjacency_matrix/test_adjacency_matrix.h"
+
+#include "lecture23/adjacency_lists/adjacency_lists2.h"
+#include "lecture23/adjacency_lists/test_adjacency_lists.h"
+
+#include "lecture23/adjacency_lists_compact_storage/adjacency_lists_compact_storage2.h"
+#include "lecture23/adjacency_lists_compact_storage/test_adjacency_lists_compact_storage.h"
+
 
 int main()
 {
-	std::cout << "\nlecture 21: election\n";
-	test_voting(election_adapted2);
+	std::cout << "\nlecture 23: adjacency matrix\n";
+	test_adjacency_matrix(adjacency_matrix2);
+
+	std::cout << "\nlecture 23: adjacency lists\n";
+	test_adjacency_lists(adjacency_lists2);
+
+	std::cout << "\nlecture 23: adjacency lists compact storage\n";
+	test_adjacency_lists_compact_storage(adjacency_lists_compact_storage2);
+	test_adjacency_lists_compact_storage(adjacency_lists_compact_storage_refactored2);
+
 	return 0;
 }
 
