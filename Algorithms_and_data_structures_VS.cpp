@@ -2,28 +2,29 @@
 //
 
 #include <iostream>
-#include "lecture23/adjacency_matrix/adjacency_matrix2.h"
-#include "lecture23/adjacency_matrix/test_adjacency_matrix.h"
+#include "lecture24/connected_components/test_connected_components.h"
+#include "lecture24/connected_components/count_connected_components2.h"
 
-#include "lecture23/adjacency_lists/adjacency_lists2.h"
-#include "lecture23/adjacency_lists/test_adjacency_lists.h"
+#include "lecture24/kosaraju/kosaraju2.h"
+#include "lecture24/kosaraju/test_kosaraju.h"
 
-#include "lecture23/adjacency_lists_compact_storage/adjacency_lists_compact_storage2.h"
-#include "lecture23/adjacency_lists_compact_storage/test_adjacency_lists_compact_storage.h"
+#include "lecture24/tarjan/tarjan2.h"
+#include "lecture24/tarjan/test_tarjan.h"
+#include "lecture24/tarjan/is_sorted_graph.h"
 
 
 int main()
 {
-	std::cout << "\nlecture 23: adjacency matrix\n";
-	test_adjacency_matrix(adjacency_matrix2);
+	std::cout << "\nlecture 24: count connected components:\n";
+	test_connected_components(count_connected_components2);
 
-	std::cout << "\nlecture 23: adjacency lists\n";
-	test_adjacency_lists(adjacency_lists2);
+	std::cout << "\nlecture 24: kosaraju:\n";
+	test_kosaraju(kosaraju_adapted2);
 
-	std::cout << "\nlecture 23: adjacency lists compact storage\n";
-	test_adjacency_lists_compact_storage(adjacency_lists_compact_storage2);
-	test_adjacency_lists_compact_storage(adjacency_lists_compact_storage_refactored2);
+	std::cout << "\nlecture 24: tarjan\n";
+	test_tarjan(tarjan2, is_sorted_graph);
 
+	
 	return 0;
 }
 
