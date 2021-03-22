@@ -2,29 +2,27 @@
 //
 
 #include <iostream>
-#include "lecture24/connected_components/test_connected_components.h"
-#include "lecture24/connected_components/count_connected_components2.h"
 
-#include "lecture24/kosaraju/kosaraju2.h"
-#include "lecture24/kosaraju/test_kosaraju.h"
+#include "lecture25/distances/distances2.h"
+#include "lecture25/distances/test_distances.h"
 
-#include "lecture24/tarjan/tarjan2.h"
-#include "lecture24/tarjan/test_tarjan.h"
-#include "lecture24/tarjan/is_sorted_graph.h"
+#include "lecture25/path/path2.h"
+#include "lecture25/path/test_path.h"
 
+#include "lecture25/horse/horse_path2.h"
+#include "lecture25/horse/test_horse.h"
 
 int main()
 {
-	std::cout << "\nlecture 24: count connected components:\n";
-	test_connected_components(count_connected_components2);
+	std::cout << "\nlecture 25: distances\n";
+	test_distances(distances2);
 
-	std::cout << "\nlecture 24: kosaraju:\n";
-	test_kosaraju(kosaraju_adapted2);
+	std::cout << "\nlecture 25: paths\n";
+	test_path(path2);
 
-	std::cout << "\nlecture 24: tarjan\n";
-	test_tarjan(tarjan2, is_sorted_graph);
+	std::cout << "\nlecture 25: horse path\n";
+	test_horse(horse_path2);
 
-	
 	return 0;
 }
 
