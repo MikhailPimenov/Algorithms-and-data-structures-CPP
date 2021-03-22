@@ -6,10 +6,13 @@
 #include "lecture26/dijkstra/dijkstra2.h"
 #include "lecture26/dijkstra/test_dijkstra.h"
 
+#include "lecture28/floyd_uolsher2.h"
+#include "lecture28/test_floyd_uolsher.h"
+
 int main()
 {
-	std::cout << "\nlecture 26: dijkstra\n";
-	test_dijkstra(dijkstra2);
+	std::cout << "\nlecture 28: floyd uolsher\n";
+	test_floyd_uolsher(floyd_uolsher2, dijkstra2);
 
 	return 0;
 }
