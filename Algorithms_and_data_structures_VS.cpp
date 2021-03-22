@@ -3,25 +3,13 @@
 
 #include <iostream>
 
-#include "lecture25/distances/distances2.h"
-#include "lecture25/distances/test_distances.h"
-
-#include "lecture25/path/path2.h"
-#include "lecture25/path/test_path.h"
-
-#include "lecture25/horse/horse_path2.h"
-#include "lecture25/horse/test_horse.h"
+#include "lecture26/dijkstra/dijkstra2.h"
+#include "lecture26/dijkstra/test_dijkstra.h"
 
 int main()
 {
-	std::cout << "\nlecture 25: distances\n";
-	test_distances(distances2);
-
-	std::cout << "\nlecture 25: paths\n";
-	test_path(path2);
-
-	std::cout << "\nlecture 25: horse path\n";
-	test_horse(horse_path2);
+	std::cout << "\nlecture 26: dijkstra\n";
+	test_dijkstra(dijkstra2);
 
 	return 0;
 }
