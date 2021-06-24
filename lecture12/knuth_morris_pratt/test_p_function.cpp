@@ -50,11 +50,9 @@ void test_p_function(void (*algorithm) (const char*, int*, int))
 		<< ((Common::is_equal(p_array4, result, length4)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result;
-	//                      0         1         2         3         4  
-	//						01234567890123456789012345678901234567890123456789
+
+
 	const char* cString5 = "pig is big#pig pig pig is very big pig pig is big";
-	//                      00000000000123412341234567000000000123412345678910
-	//                      00000000000123412341234567000000000123412345678910
 	int length5 = Common::length(cString5) - 1;
 	result = new int[static_cast <unsigned> (length5)];
 	algorithm(cString5, result, length5);
@@ -72,4 +70,17 @@ void test_p_function(void (*algorithm) (const char*, int*, int))
 		<< ((Common::is_equal(p_array5, result, length5)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result;
+
+
+	const char* cString6 = "abcabababcabck";
+	int length6 = Common::length(cString6) - 1;
+	result = new int[static_cast <unsigned> (length6)];
+	algorithm(cString6, result, length6);
+	int p_array6[]{ 0,0,0,1,2,1,2,1,2,3,4,5,3,0 };
+
+	std::cout << "test #6: "
+		<< ((Common::is_equal(p_array6, result, length6)) ? "ok" : "FAILED")
+		<< '\n';
+	delete[] result;
+
 }

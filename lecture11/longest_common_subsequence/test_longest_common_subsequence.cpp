@@ -15,13 +15,13 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	int subsequence1[] = { 1, 2, 3, 4, 5 };
 	int length1 = sizeof(subsequence1) / sizeof(subsequence1[0]);
 
-	int* result_subsequence;
+	int* result_subsequence = nullptr;
 	int result_length = 0;
 
 	result_length = algorithm(sequence11, length11, sequence12, length12, result_subsequence);
 	std::cout << "test #1: " << ((result_length == length1) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #1.1: "
-		<< ((Common::is_equal(subsequence1, result_subsequence, length1)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence1, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -38,7 +38,7 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	result_length = algorithm(sequence21, length21, sequence22, length22, result_subsequence);
 	std::cout << "test #2: " << ((result_length == length2) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #2.1: "
-		<< ((Common::is_equal(subsequence2, result_subsequence, length2)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence2, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -57,7 +57,7 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	result_length = algorithm(sequence31, length31, sequence32, length32, result_subsequence);
 	std::cout << "test #3: " << ((result_length == length3) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #3.1: "
-		<< ((Common::is_equal(subsequence3, result_subsequence, length3)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence3, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -78,7 +78,7 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	result_length = algorithm(sequence41, length41, sequence42, length42, result_subsequence);
 	std::cout << "test #4: " << ((result_length == length4) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #4.1: "
-		<< ((Common::is_equal(subsequence4, result_subsequence, length4)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence4, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -104,7 +104,7 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	result_length = algorithm(sequence51, length51, sequence52, length52, result_subsequence);
 	std::cout << "test #5: " << ((result_length == length5) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #5.1: "
-		<< ((Common::is_equal(subsequence5, result_subsequence, length5)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence5, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -131,7 +131,7 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	result_length = algorithm(sequence61, length61, sequence62, length62, result_subsequence);
 	std::cout << "test #6: " << ((result_length == length6) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #6.1: "
-		<< ((Common::is_equal(subsequence6, result_subsequence, length6)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence6, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -160,7 +160,7 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	result_length = algorithm(sequence71, length71, sequence72, length72, result_subsequence);
 	std::cout << "test #7: " << ((result_length == length7) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #7.1: "
-		<< ((Common::is_equal(subsequence7, result_subsequence, length7)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence7, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -174,11 +174,10 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	int length8 = 0;
 	int* subsequence8 = nullptr;
 
-	result_subsequence = new int[static_cast <unsigned> (length8)];
 	result_length = algorithm(sequence81, length81, sequence82, length82, result_subsequence);
 	std::cout << "test #8: " << ((result_length == length8) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #8.1: "
-		<< ((Common::is_equal(subsequence8, result_subsequence, length8)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence8, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 
@@ -207,7 +206,7 @@ void test_longest_common_subsequence(int(*algorithm)(const int*, int, const int*
 	result_length = algorithm(sequence91, length91, sequence92, length92, result_subsequence);
 	std::cout << "test #9: " << ((result_length == length9) ? "ok" : "FAILED") << '\n';
 	std::cout << "test #9.1: "
-		<< ((Common::is_equal(subsequence9, result_subsequence, length9)) ? "ok" : "FAILED")
+		<< ((Common::is_equal(subsequence9, result_subsequence, result_length)) ? "ok" : "FAILED")
 		<< '\n';
 	delete[] result_subsequence;
 }

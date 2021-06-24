@@ -113,8 +113,18 @@ void test_dijkstra ( void ( *algorithm ) ( const Lists3_t &, Vertex3_t start, Di
     max *= 5;
     result.clear();
     algorithm ( adjacency_lists, start, result );
-    int max_resultJ = result.at ( 'J' ); result.erase ( result.find ( 'J' ) );
-    int max_resultK = result.at ( 'K' ); result.erase ( result.find ( 'K' ) );
+    
+    int max_resultJ = 0;
+    int max_resultK = 0;
+    
+    if (result.find('J') != result.cend()) {
+       max_resultJ = result.at('J'); 
+       result.erase(result.find('J'));
+    }
+    if (result.find('K') != result.cend()) {
+        max_resultK = result.at('K');
+        result.erase(result.find('K'));
+    }
 
     std::cout << "test #2: " << ( ( ( answer == result )
                                     && ( max_resultJ >= max )

@@ -19,13 +19,14 @@ bool is_equal ( const char *array1, const char *array2, int length )
 void test_adjacency_matrix ( int ( *algorithm ) ( int *&matrixOut, char *&vertexes, int *&indexes ) )
 {
     std::cout << "test_adjacency_matrix:\n";
-
-//         4 5
-//         A B
-//         B C
-//         C D
-//         D B
-//         A D
+    std::cout << "input data:\n 4\n 5\n AB\n BC\n CD\n DB\n AD\n";
+//         4 
+//         5
+//         AB
+//         BC
+//         CD
+//         DB
+//         AD
     char vertexes[] { 'A', 'B', 'C', 'D' };
     int length = sizeof ( vertexes ) / sizeof ( vertexes[0] );
 
