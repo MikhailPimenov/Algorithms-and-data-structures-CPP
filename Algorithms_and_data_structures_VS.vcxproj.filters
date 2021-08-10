@@ -21,154 +21,13 @@
     <ClCompile Include="Algorithms_and_data_structures_VS.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="common_tests\test_sort\test_sort.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture6\bubble_sort\bubble_sort3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="common\common.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture6\insert_sort\insert_sort3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture6\select_sort\select_sort3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture19\heap_sort\heap_sort3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture9\hoar_sort\hoar_sort3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture9\merge_sort\merge_sort3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture12\knuth_morris_pratt\test_p_function.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture12\knuth_morris_pratt\p_function3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture12\knuth_morris_pratt\test_find_substring.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture12\knuth_morris_pratt\knuth_morris_pratt3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture11\longest_increasing_subsequence\test_longest_increasing_subsequence.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture11\longest_increasing_subsequence\longest_increasing_subsequence3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture12\levenstein\test_levenstein.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture12\levenstein\levenstein3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture17\discrete_bag\test_discrete_bag.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture17\discrete_bag\discrete_bag3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture11\longest_common_subsequence\test_longest_common_subsequence.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture11\longest_common_subsequence\longest_common_subsequence3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture13\brace_sequence\test_brace_sequence.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture13\brace_sequence\brace_sequence3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture13\reversed_polish_notation\test_reversed_polish_notation.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture13\reversed_polish_notation\reversed_polish_notation3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture13\reversed_polish_notation\symbol.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture11\chess_queen\test_chess_queen.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture11\chess_queen\chess_queen3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture28\test_floyd_uolsher.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture28\floyd_uolsher\floyd_uolsher3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture26\dijkstra\dijkstra2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture26\dijkstra\dijkstra.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="timer\timer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="lecture26\dijkstra\test_dijkstra.cpp">
+    <ClCompile Include="others\largest_sum_row_subsequence\largest_sum_row_subsequence2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="lecture26\dijkstra\dijkstra3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture24\kosaraju\test_kosaraju.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture24\kosaraju\kosaraju3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture24\tarjan\test_tarjan.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture24\tarjan\tarjan3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture24\tarjan\is_sorted_graph.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture24\connected_components\test_connected_components.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture24\connected_components\count_connected_components3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture25\distances\test_distances.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture25\distances\distances3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture25\path\test_path.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture25\path\path3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture25\horse\test_horse.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture25\horse\horse_path3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture23\adjacency_matrix\test_adjacency_matrix.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture23\adjacency_matrix\adjacency_matrix3.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="lecture12\knuth_morris_pratt\p_function_temp.cpp">
+    <ClCompile Include="others\largest_sum_row_subsequence\test_largest_sum_row_subsequence.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -176,166 +35,13 @@
     <ClInclude Include="resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="common_tests\test_sort\test_sort.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture6\bubble_sort\bubble_sort3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="common\common.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture6\insert_sort\insert_sort3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture6\select_sort\select_sort3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture19\heap_sort\heap_sort3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture9\hoar_sort\hoar_sort3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture9\merge_sort\merge_sort3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture12\knuth_morris_pratt\test_p_function.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture12\knuth_morris_pratt\p_function3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture12\knuth_morris_pratt\knuth_morris_pratt3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture12\knuth_morris_pratt\test_find_substring.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture11\longest_increasing_subsequence\test_longest_increasing_subsequence.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture11\longest_increasing_subsequence\longest_increasing_subsequence3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture12\levenstein\test_levenstein.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture12\levenstein\levenstein3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture17\discrete_bag\test_discrete_bag.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture17\discrete_bag\discrete_bag3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture11\longest_common_subsequence\test_longest_common_subsequence.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture11\longest_common_subsequence\longest_common_subsequence3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture13\brace_sequence\test_brace_sequence.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture13\brace_sequence\brace_sequence3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture13\reversed_polish_notation\test_reversed_polish_notation.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture13\reversed_polish_notation\reversed_polish_notation3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture13\reversed_polish_notation\symbol.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture11\chess_queen\test_chess_queen.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture11\chess_queen\chess_queen3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture28\test_floyd_uolsher.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture28\floyd_uolsher\floyd_uolsher3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture26\dijkstra\dijkstra2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture28\Types_for_graph.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture26\dijkstra\Types_for_graph.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture26\dijkstra\dijkstra.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="timer\timer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="lecture26\dijkstra\test_dijkstra.h">
+    <ClInclude Include="others\largest_sum_row_subsequence\largest_sum_row_subsequence2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="lecture26\dijkstra\dijkstra3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture24\kosaraju\test_kosaraju.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture24\kosaraju\kosaraju3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture24\tarjan\test_tarjan.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture24\tarjan\tarjan3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture24\tarjan\is_sorted_graph.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture24\connected_components\test_connected_components.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture24\connected_components\count_connected_components3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\distances\test_distances.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\distances\distances3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\path\test_path.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\Types_for_graph.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\path\path3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\horse\horse_path3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\horse\Types_for_chess_graph.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture25\horse\test_horse.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture23\adjacency_matrix\test_adjacency_matrix.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture23\adjacency_matrix\adjacency_matrix3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="lecture12\knuth_morris_pratt\p_function_temp.h">
+    <ClInclude Include="others\largest_sum_row_subsequence\test_largest_sum_row_subsequence.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -343,5 +49,8 @@
     <ResourceCompile Include="Algorithms_and_data_structures_VS.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
   </ItemGroup>
 </Project>
