@@ -139,7 +139,7 @@ void test_largest_sum_row_subsequence ( int ( *algorithm )( const int *array, in
 
 
 
-    int array16[]{ 20, -5, -5, -5, -5, -5, -5, 30, -5, -5, -5 };
+    int array16[]{ 20, -5, -5, -5, -5, -5, -5, 30, -5, -5, -5, };
     int length16 = (sizeof(array16)) / sizeof(array16[0]);
 
     answer = 30;
@@ -148,7 +148,7 @@ void test_largest_sum_row_subsequence ( int ( *algorithm )( const int *array, in
 
 
 
-    int array17[]{ 20, -5, -5, 30, -5, -5, -5 };
+    int array17[]{ 20, -5, -5, 30, -5, -5, -5, };
     int length17 = (sizeof(array17)) / sizeof(array17[0]);
 
     answer = 40;
@@ -157,7 +157,7 @@ void test_largest_sum_row_subsequence ( int ( *algorithm )( const int *array, in
 
 
 
-    int array18[]{ -5, 20, -5, -5, 30, -5, -5, 30, -5, -5 };
+    int array18[]{ -5, 20, -5, -5, 30, -5, -5, 30, -5, -5, };
     int length18 = (sizeof(array18)) / sizeof(array18[0]);
 
     answer = 60;
@@ -166,7 +166,7 @@ void test_largest_sum_row_subsequence ( int ( *algorithm )( const int *array, in
 
 
 
-    int array19[]{ -5, 20, -5, -5, -5, -5, -5, -5, 30, -5, -5, 30, -5, -5, 30, -5, -5, -5, -5, 10 };
+    int array19[]{ -5, 20, -5, -5, -5, -5, -5, -5, 30, -5, -5, 30, -5, -5, 30, -5, -5, -5, -5, 10, };
     int length19 = (sizeof(array19)) / sizeof(array19[0]);
 
     answer = 70;
@@ -175,7 +175,7 @@ void test_largest_sum_row_subsequence ( int ( *algorithm )( const int *array, in
 
 
 
-    int array20[]{ -5, 20, -5, -5, -5, -5, -5, -5, 30, -5, -5, 30, -5, -5, 30, -5, -5, -500, -500, 500, -500, -500, -5, -5, 10 };
+    int array20[]{ -5, 20, -5, -5, -5, -5, -5, -5, 30, -5, -5, 30, -5, -5, 30, -5, -5, -500, -500, 500, -500, -500, -5, -5, 10, };
     int length20 = (sizeof(array20)) / sizeof(array20[0]);
 
     answer = 500;
@@ -184,11 +184,30 @@ void test_largest_sum_row_subsequence ( int ( *algorithm )( const int *array, in
 
 
 
-    int array21[]{ 30, -5, -5, 30, -50, -500, -500, -500, 500 };
+    int array21[]{ 30, -5, -5, 30, -50, -500, -500, -500, 500, };
     int length21 = (sizeof(array21)) / sizeof(array21[0]);
 
     answer = 500;
     result = algorithm(array21, length21);
     std::cout << "test #21: " << ((answer == result) ? "ok" : "FAILED") << '\n';
+
+
+
+    int array22[]{ -5, -5, -50, -500, -500, -500, };
+    int length22 = (sizeof(array22)) / sizeof(array22[0]);
+
+    answer = 0;
+    result = algorithm(array22, length22);
+    std::cout << "test #22: " << ((answer == result) ? "ok" : "FAILED") << '\n';
+
+
+
+    int array23[]{ 5, 5, 5, 5, 5, };
+    int length23 = (sizeof(array23)) / sizeof(array23[0]);
+
+    answer = 25;
+    result = algorithm(array23, length23);
+    std::cout << "test #23: " << ((answer == result) ? "ok" : "FAILED") << '\n';
+
 
 }
