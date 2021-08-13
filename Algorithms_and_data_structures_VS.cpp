@@ -1,11 +1,11 @@
 #include <iostream>
 
-#include "others/largest_sum_row_subsequence/largest_sum_row_subsequence2.h"
-#include "others/largest_sum_row_subsequence/test_largest_sum_row_subsequence.h"
+#include "others/max_range/max_range.h"
+#include "others/max_range/test_max_range.h"
 
 int main()
 {
-	test_largest_sum_row_subsequence(largest_sum_row_subsequence2);
+	test_max_range(max_range);
 
 	return 0;
 }

@@ -140,13 +140,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Algorithms_and_data_structures_VS.cpp" />
-    <ClCompile Include="others\largest_sum_row_subsequence\largest_sum_row_subsequence2.cpp" />
-    <ClCompile Include="others\largest_sum_row_subsequence\test_largest_sum_row_subsequence.cpp" />
+    <ClCompile Include="others\max_range\max_range.cpp" />
+    <ClCompile Include="others\max_range\test_max_range.cpp" />
     <ClCompile Include="timer\timer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="others\largest_sum_row_subsequence\largest_sum_row_subsequence2.h" />
-    <ClInclude Include="others\largest_sum_row_subsequence\test_largest_sum_row_subsequence.h" />
+    <ClInclude Include="others\max_range\max_range.h" />
+    <ClInclude Include="others\max_range\test_max_range.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="timer\timer.h" />
   </ItemGroup>
