@@ -27,7 +27,7 @@
     <ClCompile Include="others\max_range\test_max_range.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="others\max_range\max_range.cpp">
+    <ClCompile Include="others\max_range\max_range_linear.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -41,7 +41,7 @@
     <ClInclude Include="others\max_range\test_max_range.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="others\max_range\max_range.h">
+    <ClInclude Include="others\max_range\max_range_linear.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

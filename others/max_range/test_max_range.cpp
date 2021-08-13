@@ -68,28 +68,45 @@ void test_max_range(void(*algorithm)(const int*, int, int&, int&)) {
 	const int array4[] = { 5, -6, 9 };
 	const int length4 = sizeof(array4) / sizeof(array4[0]);
 
-	expected_left = -6;
-	expected_right = -6;
-
 	algorithm(array4, length4, actual_left, actual_right);
 
+	expected_left = -6;
+	expected_right = -6;
+	bool alternative_answer41 = (actual_left == expected_left && actual_right == expected_right);
+	
+	expected_left = 5;
+	expected_right = 5;
+	bool alternative_answer42 = (actual_left == expected_left && actual_right == expected_right);
+
+	expected_left = 9;
+	expected_right = 9;
+	bool alternative_answer43 = (actual_left == expected_left && actual_right == expected_right);
+
+
 	std::cout << "test # 5: "
-		<< ((actual_left == expected_left &&
-			actual_right == expected_right) ? "ok" : "FAILED")
+		<< ((alternative_answer41||
+			 alternative_answer42||
+			 alternative_answer43) ? "ok" : "FAILED")
 		<< '\n';
 
 
 	const int array5[] = { 5, 6, -2, -3, 9 };
 	const int length5 = sizeof(array5) / sizeof(array5[0]);
 
+	algorithm(array5, length5, actual_left, actual_right);
+	
 	expected_left = -3;
 	expected_right = -2;
+	bool alternative_answer51 = (actual_left == expected_left && actual_right == expected_right);
 
-	algorithm(array5, length5, actual_left, actual_right);
+	expected_left = 5;
+	expected_right = 6;
+	bool alternative_answer52 = (actual_left == expected_left && actual_right == expected_right);
+
 
 	std::cout << "test # 6: "
-		<< ((actual_left == expected_left &&
-			actual_right == expected_right) ? "ok" : "FAILED")
+		<< ((alternative_answer51 ||
+			 alternative_answer52) ? "ok" : "FAILED")
 		<< '\n';
 	
 

@@ -116,6 +116,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -140,12 +141,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Algorithms_and_data_structures_VS.cpp" />
-    <ClCompile Include="others\max_range\max_range.cpp" />
+    <ClCompile Include="others\max_range\max_range_linear.cpp" />
     <ClCompile Include="others\max_range\test_max_range.cpp" />
     <ClCompile Include="timer\timer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="others\max_range\max_range.h" />
+    <ClInclude Include="others\max_range\max_range_linear.h" />
     <ClInclude Include="others\max_range\test_max_range.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="timer\timer.h" />
