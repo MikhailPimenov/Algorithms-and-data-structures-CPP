@@ -143,11 +143,15 @@
     <ClCompile Include="Algorithms_and_data_structures_VS.cpp" />
     <ClCompile Include="others\max_range\max_range_linear.cpp" />
     <ClCompile Include="others\max_range\test_max_range.cpp" />
+    <ClCompile Include="others\tower_hopper\test_tower_hopper.cpp" />
+    <ClCompile Include="others\tower_hopper\tower_hopper.cpp" />
     <ClCompile Include="timer\timer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="others\max_range\max_range_linear.h" />
     <ClInclude Include="others\max_range\test_max_range.h" />
+    <ClInclude Include="others\tower_hopper\test_tower_hopper.h" />
+    <ClInclude Include="others\tower_hopper\tower_hopper.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="timer\timer.h" />
   </ItemGroup>

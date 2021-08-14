@@ -1,11 +1,11 @@
 #include <iostream>
 
-#include "others/max_range/max_range_linear.h"
-#include "others/max_range/test_max_range.h"
+#include "others/tower_hopper/test_tower_hopper.h"
+#include "others/tower_hopper/tower_hopper.h"
 
 int main()
 {
-	test_max_range(max_range_linear);
+	test_tower_hopper(tower_hopper);
 
 	return 0;
 }

@@ -30,6 +30,12 @@
     <ClCompile Include="others\max_range\max_range_linear.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="others\tower_hopper\test_tower_hopper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="others\tower_hopper\tower_hopper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h">
@@ -42,6 +48,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="others\max_range\max_range_linear.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="others\tower_hopper\test_tower_hopper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="others\tower_hopper\tower_hopper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
