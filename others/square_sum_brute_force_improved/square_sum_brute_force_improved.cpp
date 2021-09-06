@@ -11,7 +11,7 @@ static Graph_t get_graph(int n) {
 	*/
 	std::vector<int> squares; 
 
-	std::size_t index = 1;
+	int index = 1;
 
 	while (index * index <= max_square) {
 		squares.push_back(index * index);
@@ -19,17 +19,15 @@ static Graph_t get_graph(int n) {
 	}
 
 	Graph_t graph;
-	graph.resize(n + 1);
 	for (int number = 1; number < n + 1; ++number)
-		//graph.insert(std::pair<int, std::vector<int>>(number, std::vector<int>()));
-		graph[number] = std::vector<int>();
+		graph.insert(std::pair<int, Vertexes_t>(number, Vertexes_t()));
+		
 
-	//for (auto& [number, neighbors] : graph) {
-	for(int number = 1; number < n + 1; ++number) {
+	for (auto& [number, neighbors] : graph) {
 		for (int neighbor = 1; neighbor < n + 1; ++neighbor) {
 			for (int square : squares) {
-				if (number + neighbor == square && number != neighbor) {// some more condition
-					graph[number].push_back(neighbor);
+				if (number + neighbor == square && number != neighbor) {
+					neighbors.insert(neighbor);
 				}
 			}
 		}
@@ -37,15 +35,15 @@ static Graph_t get_graph(int n) {
 
 	return graph;
 }
-static void depth_first_search(int start, const Graph_t& graph, Vertexes_t& used, std::vector<int> &path, int deep) {
-	if (path.size() + 1u == graph.size())
+static void depth_first_search(int start, const Graph_t& graph, Vertexes_t& used, std::vector<int> &path) {
+	if (path.size() == graph.size())
 		throw - 1;
 
-	for (int neighbor : graph[start]) {
+	for (int neighbor : graph.at(start)) {
 		if (used.find(neighbor) == used.cend()) {
 			path.push_back(neighbor);
 			used.insert(neighbor);
-			depth_first_search(neighbor, graph, used, path, deep - 1);
+			depth_first_search(neighbor, graph, used, path);
 			used.erase(neighbor);
 			path.pop_back();
 		}
@@ -59,12 +57,11 @@ std::vector < int > square_sum_brute_force_improved(int n) {
 	std::vector<int> path;
 	path.reserve(graph.size());
 	
-	//for (auto& [number, _] : graph) {
-	for(int number = 1; number < n + 1; ++number){
+	for (auto& [number, _] : graph) {
 		path.push_back(number);
 		used.insert(number);
 		try {
-			depth_first_search(number, graph, used, path, n - 1);
+			depth_first_search(number, graph, used, path);
 		}
 		catch (int) {
 			return path;
