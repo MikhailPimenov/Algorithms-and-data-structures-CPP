@@ -1,4 +1,4 @@
-#include "types.h"
+#include "types_tiptoe.h"
 
 Point::Point() : m_x(0.0), m_y(0.0) {
 
