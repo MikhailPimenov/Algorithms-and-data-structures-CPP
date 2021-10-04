@@ -20,6 +20,7 @@ void test_a1(void (*algorithm)(int, Graph_t&)) {
 	
 	required_expected.insert(std::pair<int, Vertexes_t>(second_vertex1, Vertexes_t{ current_vertex }));
 	required_expected.insert(std::pair<int, Vertexes_t>(current_vertex, Vertexes_t{ second_vertex2 }));
+	required_expected.insert(std::pair<int, Vertexes_t>(second_vertex2, Vertexes_t()));
 	
 
 	algorithm(current_vertex, required_actual);
@@ -34,10 +35,11 @@ void test_a1(void (*algorithm)(int, Graph_t&)) {
 
 	required_actual.insert(std::pair<int, Vertexes_t>(current_vertex, Vertexes_t{ second_vertex1, second_vertex2 }));
 	required_actual.insert(std::pair<int, Vertexes_t>(second_vertex2, Vertexes_t{ current_vertex }));
+	required_actual.insert(std::pair<int, Vertexes_t>(second_vertex1, Vertexes_t()));
 
 	required_expected.insert(std::pair<int, Vertexes_t>(current_vertex, Vertexes_t{ second_vertex1 }));
 	required_expected.insert(std::pair<int, Vertexes_t>(second_vertex2, Vertexes_t{ current_vertex }));
-
+	required_expected.insert(std::pair<int, Vertexes_t>(second_vertex1, Vertexes_t()));
 
 	algorithm(current_vertex, required_actual);
 	std::cout << "test #2: " << (required_actual == required_expected ? "ok" : "FAILED") << '\n';

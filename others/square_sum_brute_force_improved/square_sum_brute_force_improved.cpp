@@ -1,5 +1,9 @@
 #include "square_sum_brute_force_improved.h"
 
+Graphs_t::Graphs_t(const Graph_t& graph) : m_graph(graph) {
+
+}
+
 static Graph_t get_graph(int n) {
 	const int max_square = 2 * n - 1;
 
