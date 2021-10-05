@@ -1,6 +1,6 @@
 #include "get_tangents.h"
 
-std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2) {
+Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 	if (are_equal(circle_1.m_center.m_x, circle_2.m_center.m_x) &&
 		are_equal(circle_1.m_center.m_y, circle_2.m_center.m_y))
 		return {};
@@ -15,8 +15,8 @@ std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2
 	const auto& circle_a = 
 		circle_2.m_center.m_y < circle_1.m_center.m_y ? circle_2 : circle_1;   // lower circle
 
-	std::vector<Tangent> tangents;
-	tangents.reserve(4u);
+	Tangents_t tangents;
+	//tangents.reserve(4u);
 
 	const double distance_between_cirlces = get_distance(circle_a.m_center, circle_b.m_center);
 	const double r_a = circle_a.m_radius;
@@ -44,11 +44,7 @@ std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2
 		xo_b + r_b * std::cos(angle_sum_outer),
 		yo_b - r_b * std::sin(angle_sum_outer)
 	);
-	tangents.emplace_back(A_outer_1, B_outer_1, circle_a, circle_b);
-
-
-	if (no_inner_tangents)
-		return tangents;
+	//tangents.emplace(A_outer_1, B_outer_1, circle_a, circle_b);
 
 
 	const Point A_outer_2(
@@ -59,8 +55,12 @@ std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2
 		xo_b - r_b * std::cos(angle_subtraction_outer),
 		yo_b - r_b * std::sin(angle_subtraction_outer)
 	);
-	tangents.emplace_back(A_outer_2, B_outer_2, circle_a, circle_b);
+	//tangents.emplace(A_outer_2, B_outer_2, circle_a, circle_b);
 
+
+	if (no_inner_tangents)
+		//return tangents;
+		;
 
 	const Point A_inner_1(
 		xo_a + r_a * std::cos(angle_sum_inner),
@@ -70,7 +70,7 @@ std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2
 		xo_b - r_b * std::cos(angle_sum_inner),
 		yo_b + r_b * std::sin(angle_sum_inner)
 	);
-	tangents.emplace_back(A_inner_1, B_inner_1, circle_a, circle_b);
+	//tangents.emplace(A_inner_1, B_inner_1, circle_a, circle_b);
 
 
 	const Point A_inner_2(
@@ -81,8 +81,9 @@ std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2
 		xo_b + r_b * std::cos(angle_subtraction_inner),
 		yo_b + r_b * std::sin(angle_subtraction_inner)
 	);
-	tangents.emplace_back(A_inner_2, B_inner_2, circle_a, circle_b);
+	//tangents.emplace(A_inner_2, B_inner_2, circle_a, circle_b);
 
 
-	return tangents;
+	//return tangents;
+	return {};
 }

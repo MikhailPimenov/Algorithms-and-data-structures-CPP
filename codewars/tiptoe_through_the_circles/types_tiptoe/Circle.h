@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Point.h"
+#include "../double_comparison/are_equal.h"
 
 struct Circle {
 	const Point m_center;
@@ -9,4 +10,6 @@ struct Circle {
 	Circle();
 	Circle(Point center, double radius);
 	Circle(double x_center, double y_center, double radius);
+
+	friend bool operator==(const Circle& circle_1, const Circle& circle_2);
 };
