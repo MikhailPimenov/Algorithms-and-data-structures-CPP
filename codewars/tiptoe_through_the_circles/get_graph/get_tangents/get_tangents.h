@@ -9,4 +9,6 @@
 
 #include "../../get_length/get_distance.h"
 
+#include "../../double_comparison/are_equal.h"
+
 std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2);

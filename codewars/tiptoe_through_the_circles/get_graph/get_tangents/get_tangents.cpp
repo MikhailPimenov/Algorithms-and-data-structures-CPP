@@ -1,6 +1,15 @@
 #include "get_tangents.h"
 
 std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2) {
+	if (are_equal(circle_1.m_center.m_x, circle_2.m_center.m_x) &&
+		are_equal(circle_1.m_center.m_y, circle_2.m_center.m_y))
+		return {};
+
+	bool no_inner_tangents = false;
+	if (get_distance(circle_1.m_center, circle_2.m_center) <
+		circle_1.m_radius + circle_2.m_radius)
+		no_inner_tangents = true;
+
 	const auto& circle_b = 
 		circle_2.m_center.m_y >= circle_1.m_center.m_y ? circle_2 : circle_1;  // upper circle
 	const auto& circle_a = 
@@ -38,6 +47,10 @@ std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2
 	tangents.emplace_back(A_outer_1, B_outer_1, circle_a, circle_b);
 
 
+	if (no_inner_tangents)
+		return tangents;
+
+
 	const Point A_outer_2(
 		xo_a - r_a * std::cos(angle_subtraction_outer),
 		yo_a - r_a * std::sin(angle_subtraction_outer)
@@ -70,5 +83,6 @@ std::vector<Tangent> get_tangents(const Circle& circle_1, const Circle& circle_2
 	);
 	tangents.emplace_back(A_inner_2, B_inner_2, circle_a, circle_b);
 
-	return {};
+
+	return tangents;
 }
