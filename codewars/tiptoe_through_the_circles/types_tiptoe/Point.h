@@ -3,6 +3,7 @@
 #include <functional>
 
 #include "../double_comparison/are_equal.h"
+#include "../double_comparison/hashing_double.h"
 
 struct Point {
 	const double m_x, m_y;
@@ -10,7 +11,7 @@ struct Point {
 	Point();
 	Point(double x, double y);
 
-	friend bool operator==(const Point &point_1, const Point& point_2);
+	friend bool operator==(const Point &point_1, const Point& point_2) noexcept;
 };
 
 struct Point_hash {
