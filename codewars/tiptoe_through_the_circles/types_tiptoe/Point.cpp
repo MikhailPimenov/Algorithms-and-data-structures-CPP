@@ -11,6 +11,9 @@ bool operator==(const Point &point_1, const Point& point_2) noexcept {
 	return are_equal(point_1.m_x, point_2.m_x) && are_equal(point_1.m_y, point_2.m_y);
 }
 
+bool operator!=(const Point& point_1, const Point& point_2) noexcept {
+	return !(point_1 == point_2);
+}
 
 std::size_t Point_hash::operator()(const Point& obj) const noexcept {
 	return std::hash<double>{}(

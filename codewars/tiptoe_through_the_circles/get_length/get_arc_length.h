@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cmath>
-#include <numbers>
 
 #include "../constants_tiptoe.h"
 #include "../types_tiptoe/Point.h"
