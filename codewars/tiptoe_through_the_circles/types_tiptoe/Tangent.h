@@ -14,8 +14,7 @@ struct Tangent {
 	const Circle& m_circle_a;
 	const Circle& m_circle_b;
 
-	Tangent(Point a, Point b, const Circle &circle_a, const Circle& circle_b);
-	//std::size_t operator()() const { return 1; };
+	Tangent(const Point& a, const Point &b, const Circle &circle_a, const Circle& circle_b);
 
 	friend bool operator==(const Tangent& tangent_1, const Tangent& tangent_2);
 };

@@ -1,8 +1,8 @@
 #include "Tangent.h"
 
 Tangent::Tangent(
-	Point a,
-	Point b,
+	const Point &a,
+	const Point &b,
 	const Circle& circle_a,
 	const Circle& circle_b
 ) : m_a(a),

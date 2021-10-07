@@ -13,3 +13,7 @@ struct Circle {
 
 	friend bool operator==(const Circle& circle_1, const Circle& circle_2);
 };
+
+struct Circle_hash {
+	std::size_t operator()(const Circle& obj) const noexcept;
+};
