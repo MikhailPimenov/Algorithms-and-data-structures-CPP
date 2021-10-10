@@ -42,7 +42,7 @@ void test_get_distance_from_line(double (*algorithm)(const Circle&, const Tangen
 	);
 	length_expected = 5.0 * std::sqrt(2.0);
 
-	length_actual = algorithm(c3, t2);
+	length_actual = algorithm(c3, t3);
 	std::cout << "test  #3: " <<
 		(are_equal(length_actual, length_expected) ? "ok" : "FAILED") << '\n';
 

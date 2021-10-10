@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cmath>
-
 #include "../constants_tiptoe.h"
+#include "../get_angle/get_angle.h"
 #include "../types_tiptoe/Point.h"
 #include "../types_tiptoe/Circle.h"
 

@@ -27,8 +27,8 @@ void test_get_arc_length(double (*algorithm)(const Point&, const Point&, const C
 
 
 	Circle c3(c1);
-	Point p31(std::sqrt(2.0) / 2.0, std::sqrt(2.0) / 2.0);
-	Point p32(-std::sqrt(2.0) / 2.0, std::sqrt(2.0) / 2.0);
+	Point p31(-std::sqrt(2.0) / 2.0, std::sqrt(2.0) / 2.0);
+	Point p32(std::sqrt(2.0) / 2.0, std::sqrt(2.0) / 2.0);
 	length_expected = g_pi / 2.0;
 
 	length_actual = algorithm(p31, p32, c3);
@@ -165,5 +165,47 @@ void test_get_arc_length(double (*algorithm)(const Point&, const Point&, const C
 	std::cout << "test #16: " <<
 		(are_equal(length_actual, length_expected) ? "ok" : "FAILED") << '\n';
 
+
+	Circle c17(c1);
+	Point p171(1.0 / 2.0, -std::sqrt(3.0) / 2.0);
+	Point p172(-1.0 / 2.0, -std::sqrt(3.0) / 2.0);
+	length_expected = g_pi / 3.0;
+
+	length_actual = algorithm(p171, p172, c16);
+	std::cout << "test #17: " <<
+		(are_equal(length_actual, length_expected) ? "ok" : "FAILED") << '\n';
+
+
+	Circle c18(c1);
+	Point p181(p172);
+	Point p182(p171);
+	length_expected = 5.0 * g_pi / 3.0;
+
+	length_actual = algorithm(p181, p182, c18);
+	std::cout << "test #18: " <<
+		(are_equal(length_actual, length_expected) ? "ok" : "FAILED") << '\n';
+
+
+	Circle c19(c1);
+	Point p191(std::sqrt(2.0) / 2.0, -std::sqrt(2.0) / 2.0);
+	Point p192(-std::sqrt(2.0) / 2.0, -std::sqrt(2.0) / 2.0);
+	length_expected = g_pi / 2.0;
+
+	length_actual = algorithm(p191, p192, c19);
+	std::cout << "test #19: " <<
+		(are_equal(length_actual, length_expected) ? "ok" : "FAILED") << '\n';
+
+
+	Circle c20(c1);
+	Point p201(p192);
+	Point p202(p191);
+	length_expected = 3.0 * g_pi / 2.0;
+
+	length_actual = algorithm(p201, p202, c20);
+	std::cout << "test #20: " <<
+		(are_equal(length_actual, length_expected) ? "ok" : "FAILED") << '\n';
+
 }
+
+
 

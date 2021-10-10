@@ -8,7 +8,5 @@
 #include "../../types_tiptoe/Tangent.h"
 
 
-
-
 bool there_is_collision_between_tangent_and_circle(const Tangent& tangent, const Circle& circle);
 
