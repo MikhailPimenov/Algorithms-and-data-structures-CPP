@@ -65,8 +65,23 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.clear();
 
 
-	Point a5(-2.0003, 3.74947);
-	Point b5(3.08681, -0.361379);
+	Point a5(0, 1);
+	Point b5(0, -1);
+	circles.emplace_back(0, 0, 0.8);
+	circles.emplace_back(-3.8, 0, 3.2);
+	circles.emplace_back(3.5, 0, 3);
+	circles.emplace_back(7, 0, 1);
+	result_expected = 19.0575;
+
+	result_actual = algorithm(a5, b5, circles);
+
+	std::cout << "test  #5: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	circles.clear();
+
+
+	Point a6(-2.0003, 3.74947);
+	Point b6(3.08681, -0.361379);
 	circles.emplace_back(-4.31218, -1.826, 1.5373);
 	circles.emplace_back(4.09037, -3.60735, 0.95389);
 	circles.emplace_back(-4.09823, 4.12037, 1.125);
@@ -108,15 +123,15 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(-0.738774, -4.24674, 0.661515);
 	result_expected = 11.9228;
 
-	result_actual = algorithm(a5, b5, circles);
+	result_actual = algorithm(a6, b6, circles);
 
-	std::cout << "test  #5: " <<
+	std::cout << "test  #6: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
 	circles.clear();
 
 
-	Point a6(1, 1);
-	Point b6(9, 9);
+	Point a7(1, 1);
+	Point b7(9, 9);
 	circles.emplace_back(0, 0, 0.162875);
 	circles.emplace_back(0, 1, 0.352399);
 	circles.emplace_back(0, 2, 0.536426);
@@ -238,9 +253,9 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(10, 10, 0.356473);
 	result_expected = 13.5171;
 
-	result_actual = algorithm(a6, b6, circles);
+	result_actual = algorithm(a7, b7, circles);
 
-	std::cout << "test  #6: " <<
+	std::cout << "test  #7: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
 	circles.clear();
 
