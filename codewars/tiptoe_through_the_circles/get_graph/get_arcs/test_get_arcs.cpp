@@ -83,4 +83,20 @@ void test_get_arcs(Arcs_t(*algorithm)(const Points_t&, const Circle&)) {
 	arcs_actual.clear();
 	arcs_expected.clear();
 
+
+	Circle c5(1.0, 1.0, 1.0);
+	Points_t points5;
+
+	points5.emplace(1.0, 2.0);
+	points5.emplace(1.0, 0.0);
+	arcs_expected.emplace(Point(1.0, 0.0), Point(1.0, 2.0), c5);
+	arcs_expected.emplace(Point(1.0, 2.0), Point(1.0, 0.0), c5);
+
+	arcs_actual = algorithm(points5, c5);
+
+	std::cout << "test  #5: " <<
+		(arcs_actual == arcs_expected ? "ok" : "FAILED") << '\n';
+	arcs_actual.clear();
+	arcs_expected.clear();
+
 }

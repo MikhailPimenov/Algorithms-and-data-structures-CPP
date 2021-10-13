@@ -9,7 +9,9 @@ Arc::Arc(const Point &a, const Point &b, const Circle &owner)
 }
 
 bool operator==(const Arc& arc_1, const Arc& arc_2) noexcept {
-	return arc_1.m_a == arc_2.m_a && arc_1.m_b == arc_2.m_b;
+	return arc_1.m_a == arc_2.m_a &&
+		   arc_1.m_b == arc_2.m_b && 
+		   arc_1.m_owner.m_center == arc_2.m_owner.m_center;
 }
 
 std::size_t Arc_hash::operator()(const Arc& obj) const noexcept {
