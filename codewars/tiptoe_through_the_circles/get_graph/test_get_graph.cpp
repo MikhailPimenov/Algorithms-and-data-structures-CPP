@@ -10,20 +10,6 @@ static bool operator==(const Vertices_t& left, const Vertices_t& right) {
 
 	return true;
 }
-static bool operator!=(const Vertices_t& left, const Vertices_t& right) {
-	return !(left == right);
-}
-
-static bool operator==(const Graph_t& left, const Graph_t& right) {
-    for (const auto& [key, value] : left) {
-        if (right.find(key) == right.cend()) 
-            return false;
-        
-		if (right.at(key) != value)
-			return false;
-    }
-    return true;
-}
 
 void test_get_graph(Graph_t(*algorithm)(const Point&, const Point&, const std::vector<Circle>&)) {
 	std::cout << "test_get_graph:\n";
