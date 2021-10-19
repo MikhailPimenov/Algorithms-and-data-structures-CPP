@@ -1,11 +1,13 @@
 #include "get_graph.h"
 
-void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
+static void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
 	for (const auto& circle : circles) {
 		for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-			if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
-				tangent = tangents.erase(tangent);
-				continue;
+			if (!(tangent->m_circle_a == &circle) && !(tangent->m_circle_b == &circle)){ // create != for circle, unite these conditions or create separated function
+				if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
+					tangent = tangents.erase(tangent);
+					continue;
+				}
 			}
 			++tangent;
 		}
@@ -14,29 +16,33 @@ void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
 void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
 	for (const auto& circle : circles) {
 		for (auto arc = arcs.cbegin(); arc != arcs.cend();) {
-			if (there_is_collision_between_arc_and_circle(*arc, circle)) {
-				arc = arcs.erase(arc);
-				continue;
+			if (!(arc->m_owner == circle)) {// create != for circle, unite these conditions or create separated function
+				if (there_is_collision_between_arc_and_circle(*arc, circle)) {
+					arc = arcs.erase(arc);
+					continue;
+				}
 			}
 			++arc;
 		}
 	}
 }
 
-std::unordered_map<Circle, Points_pointers_t, Circle_hash> get_points(const Tangents_t& tangents) {
-	std::unordered_map<Circle, Points_pointers_t, Circle_hash> points;
+std::unordered_map<Circle, Points_t, Circle_hash> get_points(const Tangents_t& tangents) {
+	std::unordered_map<Circle, Points_t, Circle_hash> points;
 	for (const auto& tangent : tangents) {
-		if (points.find(tangent.m_circle_a) == points.cend())
-			points.insert(std::pair<Circle, Points_pointers_t>(tangent.m_circle_a, Points_pointers_t()));
-		if (points.find(tangent.m_circle_b) == points.cend())
-			points.insert(std::pair<Circle, Points_pointers_t>(tangent.m_circle_b, Points_pointers_t()));
+		if (points.find(*tangent.m_circle_a) == points.cend())
+			points.insert(std::pair<Circle, Points_t>(*tangent.m_circle_a, Points_t()));
+		if (points.find(*tangent.m_circle_b) == points.cend())
+			points.insert(std::pair<Circle, Points_t>(*tangent.m_circle_b, Points_t()));
 
-		points.at(tangent.m_circle_a).insert(&(tangent.m_a));
-		points.at(tangent.m_circle_b).insert(&(tangent.m_b));
+		points.at(*tangent.m_circle_a).insert(tangent.m_a);
+		points.at(*tangent.m_circle_b).insert(tangent.m_b);
 	}
 
 	return points;
 }
+
+// TODO: split into different functions
 Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
 	const Circle circle_a(a, 0.0);
 	const Circle circle_b(b, 0.0);
@@ -66,23 +72,22 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	filter_tangents(tangent_a_b, circles);
 	tangents.insert(tangent_a_b.cbegin(), tangent_a_b.cend());
 
-	const auto points_pointers = get_points(tangents);
+	const auto points_on_circles = get_points(tangents);
 	
-	std::unordered_map<Circle, Points_t, Circle_hash> points;
 	Arcs_t arcs;
 	arcs.reserve(tangents.size() * tangents.size());
-	for (const auto& [circle, points_on_circle] : points) {
-		auto arcs_on_circle = get_arcs(points_on_circle, circle); // TODO: change get_arcs for working with pointers on points
+	for (const auto& [circle, points_on_circle] : points_on_circles) { 
+		auto arcs_on_circle = get_arcs(points_on_circle, circle); 
 		arcs.insert(arcs_on_circle.cbegin(), arcs_on_circle.cend());
 	}
 	filter_arcs(arcs, circles);
 
 	Graph_t graph;
-	graph.reserve(points.size());
-	for (const auto& [_, points_on_circle] : points_pointers) {
+	graph.reserve(tangents.size() * 2u + 2u);
+	for (const auto& [_, points_on_circle] : points_on_circles) {
 		for (const auto& point : points_on_circle) {
-			if (graph.find(*point) == graph.cend())
-				graph.insert(std::pair<Vertex_t, Vertices_t>(*point, Vertices_t()));
+			if (graph.find(point) == graph.cend())
+				graph.insert(std::pair<Vertex_t, Vertices_t>(point, Vertices_t()));
 		}
 	}
 

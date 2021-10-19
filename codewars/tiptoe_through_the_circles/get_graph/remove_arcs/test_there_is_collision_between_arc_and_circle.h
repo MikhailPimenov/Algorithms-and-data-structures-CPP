@@ -2,12 +2,11 @@
 
 #include <iostream>
 
-#include "../../double_comparison/are_equal.h"
-#include "../../double_comparison/is_between.h"
 #include "../../get_length/get_distance.h"
 #include "../../get_angle/get_angle.h"
 
 #include "../../types_tiptoe/Arc.h"
+#include "../../types_tiptoe/Double.h"
 #include "../../types_tiptoe/Circle.h"
 
 
