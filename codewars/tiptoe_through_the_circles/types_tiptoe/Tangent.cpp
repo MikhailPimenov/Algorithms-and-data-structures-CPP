@@ -8,20 +8,20 @@ Tangent::Tangent(
 ) : m_a(a),
     m_b(b),
 	m_length(get_distance(a, b)),
-	m_circle_a(circle_a),
-	m_circle_b(circle_b) {
+	m_circle_a(&circle_a),
+	m_circle_b(&circle_b) {
 
 }
 
-bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) {
+bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept{
 	return (tangent_1.m_a == tangent_2.m_a &&
     		tangent_1.m_b == tangent_2.m_b &&
-			tangent_1.m_circle_a == tangent_2.m_circle_a &&
-			tangent_1.m_circle_b == tangent_2.m_circle_b) ||
+			*tangent_1.m_circle_a == *tangent_2.m_circle_a &&
+			*tangent_1.m_circle_b == *tangent_2.m_circle_b) ||
 		   (tangent_1.m_a == tangent_2.m_b &&
 			tangent_1.m_b == tangent_2.m_a &&
-			tangent_1.m_circle_a == tangent_2.m_circle_b &&
-			tangent_1.m_circle_b == tangent_2.m_circle_a);
+			*tangent_1.m_circle_a == *tangent_2.m_circle_b &&
+			*tangent_1.m_circle_b == *tangent_2.m_circle_a);
 }
 
 std::size_t Tangent_hash::operator()(const Tangent& obj) const noexcept {

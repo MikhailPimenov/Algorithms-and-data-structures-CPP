@@ -4,19 +4,15 @@
 #include "Point.h"
 #include "../get_length/get_distance.h"
 
-#include <unordered_set>
-#include <numeric>
-
 struct Tangent {
-	const Point m_a;
-	const Point m_b;
-	const double m_length;
-	const Circle& m_circle_a;
-	const Circle& m_circle_b;
+	Point m_a;
+	Point m_b;
+	double m_length;
+	const Circle* m_circle_a;
+	const Circle* m_circle_b;
 
 	Tangent(const Point& a, const Point &b, const Circle &circle_a, const Circle& circle_b);
-
-	friend bool operator==(const Tangent& tangent_1, const Tangent& tangent_2);
+	friend bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept;
 };
 
 
