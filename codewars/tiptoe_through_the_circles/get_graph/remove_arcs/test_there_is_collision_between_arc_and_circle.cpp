@@ -203,4 +203,32 @@ void test_there_is_collision_between_arc_and_circle(
 
 	std::cout << "test #19: " <<
 		(result_actual == result_expected ? "ok" : "FAILED") << '\n';
+
+
+	Arc a20(
+		Point(-2.0, 0.0),
+		Point(0.0, -2.0),
+		owner
+	);
+	Circle c20(Point(2.0, 2.0), 1.0);
+	result_expected = true;
+
+	result_actual = algorithm(a20, c20);
+
+	std::cout << "test #20: " <<
+		(result_actual == result_expected ? "ok" : "FAILED") << '\n';
+
+
+	Arc a21(
+		Point(0.0, -2.0),
+		Point(-2.0, 0.0),
+		owner
+	);
+	Circle c21(Point(2.0, 2.0), 1.0);
+	result_expected = false;
+
+	result_actual = algorithm(a21, c21);
+
+	std::cout << "test #21: " <<
+		(result_actual == result_expected ? "ok" : "FAILED") << '\n';
 }
