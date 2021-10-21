@@ -1,34 +1,9 @@
 #include "get_graph.h"
 
-//static void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
-//	for (const auto& circle : circles) {
-//		for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-//			if (!(tangent->m_circle_a == &circle) && !(tangent->m_circle_b == &circle)){ // create != for circle, unite these conditions or create separated function
-//				if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
-//					tangent = tangents.erase(tangent);
-//					continue;
-//				}
-//			}
-//			++tangent;
-//		}
-//	}
-//}
-//static void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
-//	for (const auto& circle : circles) {
-//		for (auto arc = arcs.cbegin(); arc != arcs.cend();) {
-//			if (!(*(arc->m_owner) == circle)) {// create != for circle, unite these conditions or create separated function
-//				if (there_is_collision_between_arc_and_circle(*arc, circle)) {
-//					arc = arcs.erase(arc);
-//					continue;
-//				}
-//			}
-//			++arc;
-//		}
-//	}
-//}
 
-std::unordered_map<Circle, Points_t, Circle_hash> get_points(const Tangents_t& tangents) {
-	std::unordered_map<Circle, Points_t, Circle_hash> points;
+Points_on_circles_t get_points(const Tangents_t& tangents) {
+	// parsing all tangents to find out which points belongs to which circles
+	Points_on_circles_t points;
 	for (const auto& tangent : tangents) {
 		if (points.find(*tangent.m_circle_a) == points.cend())
 			points.insert(std::pair<Circle, Points_t>(*tangent.m_circle_a, Points_t()));
@@ -42,22 +17,27 @@ std::unordered_map<Circle, Points_t, Circle_hash> get_points(const Tangents_t& t
 	return points;
 }
 
-// TODO: split into different functions
 Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
-	const Circle circle_a(a, 0.0);
-	const Circle circle_b(b, 0.0);
-
+	
 	Tangents_t tangents;
 	tangents.reserve(4.0 * (circles.size() + 2u) * (circles.size() + 1u));
 	
+	// finding all tangents
 	for (auto circle_1 = circles.cbegin(); circle_1 != circles.cend(); ++circle_1) {
 		for (auto circle_2 = circle_1 + 1u; circle_2 != circles.cend(); ++circle_2) {
+			
+			// tangents between two circles
 			auto pair_tangents = get_tangents(*circle_1, *circle_2);
+			
+			// removing tangents which can not exist
 			filter_tangents(pair_tangents, circles);		
 			tangents.insert(pair_tangents.cbegin(), pair_tangents.cend());
 		}
 	}
 
+	// same with start and finish points and all other circles, considering points as circles
+	const Circle circle_a(a, 0.0);
+	const Circle circle_b(b, 0.0);
 	for (const auto& circle : circles) {
 		auto pair_tangents_a = get_tangents(circle_a, circle);
 		filter_tangents(pair_tangents_a, circles);
@@ -68,20 +48,27 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 		tangents.insert(pair_tangents_a.cbegin(), pair_tangents_a.cend());
 		tangents.insert(pair_tangents_b.cbegin(), pair_tangents_b.cend());
 	}
+
+	// same with both start and finish points
 	Tangents_t tangent_a_b = get_tangents(circle_a, circle_b);
 	filter_tangents(tangent_a_b, circles);
 	tangents.insert(tangent_a_b.cbegin(), tangent_a_b.cend());
 
+	// all points with binding to their own circles
 	const auto points_on_circles = get_points(tangents);
 	
+	// finding all arcs
 	Arcs_t arcs;
 	arcs.reserve(tangents.size() * tangents.size());
 	for (const auto& [circle, points_on_circle] : points_on_circles) { 
 		auto arcs_on_circle = get_arcs(points_on_circle, circle); 
 		arcs.insert(arcs_on_circle.cbegin(), arcs_on_circle.cend());
 	}
+
+	// removing arc which can not exist
 	filter_arcs(arcs, circles);
 
+	// adding points to graph
 	Graph_t graph;
 	graph.reserve(tangents.size() * 2u + 2u);
 	for (const auto& [_, points_on_circle] : points_on_circles) {
@@ -91,6 +78,7 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 		}
 	}
 
+	// connecting points with each other according to tangent/arc they belong to
 	for (auto& [vertex, neighbors] : graph) {
 		for (const auto& tangent : tangents) {
 			if (tangent.m_a == vertex)

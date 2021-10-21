@@ -14,6 +14,7 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 		distance_between_circles + circle_2.m_radius < circle_1.m_radius)
 		return {};
 
+	// circles intersects - no inner tangents
 	bool no_inner_tangents = false;
 	if (distance_between_circles < circle_1.m_radius + circle_2.m_radius ||
 		are_equal(circle_1.m_radius + circle_2.m_radius, distance_between_circles))
@@ -44,6 +45,8 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 	Tangents_t tangents;
 	tangents.reserve(4u);
 
+
+	// outer tangents
 	const Point A_outer_1(
 		xo_a + r_a * std::cos(angle_sum_outer),
 		yo_a - r_a * std::sin(angle_sum_outer)
@@ -70,6 +73,7 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 		return tangents;
 		
 
+	// inner tangents
 	const Point A_inner_1(
 		xo_a + r_a * std::cos(angle_sum_inner),
 		yo_a - r_a * std::sin(angle_sum_inner)

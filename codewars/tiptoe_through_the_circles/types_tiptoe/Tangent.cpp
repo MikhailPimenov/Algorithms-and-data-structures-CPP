@@ -24,6 +24,10 @@ bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept{
 			*tangent_1.m_circle_b == *tangent_2.m_circle_a);
 }
 
+bool operator!=(const Tangent& tangent_1, const Tangent& tangent_2) noexcept {
+	return !(tangent_1 == tangent_2);
+}
+
 std::size_t Tangent_hash::operator()(const Tangent& obj) const noexcept {
 	return Point_hash::call(obj.m_a) +
 		   Point_hash::call(obj.m_b);										// symmetrical : hash(Tangent(a,b)) = hash(Tangent(b,a))

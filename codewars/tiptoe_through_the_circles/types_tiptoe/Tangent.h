@@ -13,6 +13,7 @@ struct Tangent {
 
 	Tangent(const Point& a, const Point &b, const Circle &circle_a, const Circle& circle_b);
 	friend bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept;
+	friend bool operator!=(const Tangent& tangent_1, const Tangent& tangent_2) noexcept;
 };
 
 
