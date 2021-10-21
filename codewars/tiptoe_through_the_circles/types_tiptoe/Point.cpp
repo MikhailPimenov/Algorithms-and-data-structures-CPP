@@ -3,7 +3,7 @@
 Point::Point() : m_x(0.0), m_y(0.0) {
 
 }
-Point::Point(double x, double y) : m_x(x), m_y(y) {
+Point::Point(const Double &x, const Double &y) : m_x(x), m_y(y) {
 
 }
 
@@ -16,7 +16,9 @@ bool operator!=(const Point& point_1, const Point& point_2) noexcept {
 }
 
 std::size_t Point_hash::operator()(const Point& obj) const noexcept {
-	return Double_hash::call(obj.m_x) * 2u + Double_hash::call(obj.m_y); // without * 2u :  hash(Point(1,0)) = hash(Point(0,1))
+	const std::size_t x = Double_hash::call(obj.m_x);
+	const std::size_t y = Double_hash::call(obj.m_y);
+	return (x + y) * (x + y + 1) / 2 + y;  // Cantor's pair
 }
 
 std::size_t Point_hash::call(const Point& obj) noexcept {

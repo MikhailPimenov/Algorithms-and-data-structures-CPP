@@ -7,10 +7,10 @@
 
 
 struct Arc {
-	const Point m_a;
-	const Point m_b;
-	const double m_length;
-	const Circle& m_owner;
+	Point m_a;
+	Point m_b;
+	double m_length;
+	const Circle* m_owner;
 
 	Arc(const Point& a, const Point& b, const Circle& owner);
 

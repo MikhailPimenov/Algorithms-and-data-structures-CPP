@@ -1,31 +1,31 @@
 #include "get_graph.h"
 
-static void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
-	for (const auto& circle : circles) {
-		for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-			if (!(tangent->m_circle_a == &circle) && !(tangent->m_circle_b == &circle)){ // create != for circle, unite these conditions or create separated function
-				if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
-					tangent = tangents.erase(tangent);
-					continue;
-				}
-			}
-			++tangent;
-		}
-	}
-}
-void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
-	for (const auto& circle : circles) {
-		for (auto arc = arcs.cbegin(); arc != arcs.cend();) {
-			if (!(arc->m_owner == circle)) {// create != for circle, unite these conditions or create separated function
-				if (there_is_collision_between_arc_and_circle(*arc, circle)) {
-					arc = arcs.erase(arc);
-					continue;
-				}
-			}
-			++arc;
-		}
-	}
-}
+//static void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
+//	for (const auto& circle : circles) {
+//		for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
+//			if (!(tangent->m_circle_a == &circle) && !(tangent->m_circle_b == &circle)){ // create != for circle, unite these conditions or create separated function
+//				if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
+//					tangent = tangents.erase(tangent);
+//					continue;
+//				}
+//			}
+//			++tangent;
+//		}
+//	}
+//}
+//static void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
+//	for (const auto& circle : circles) {
+//		for (auto arc = arcs.cbegin(); arc != arcs.cend();) {
+//			if (!(*(arc->m_owner) == circle)) {// create != for circle, unite these conditions or create separated function
+//				if (there_is_collision_between_arc_and_circle(*arc, circle)) {
+//					arc = arcs.erase(arc);
+//					continue;
+//				}
+//			}
+//			++arc;
+//		}
+//	}
+//}
 
 std::unordered_map<Circle, Points_t, Circle_hash> get_points(const Tangents_t& tangents) {
 	std::unordered_map<Circle, Points_t, Circle_hash> points;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iomanip>
 #include <iostream>
 
 #include "../types_tiptoe/Point.h"

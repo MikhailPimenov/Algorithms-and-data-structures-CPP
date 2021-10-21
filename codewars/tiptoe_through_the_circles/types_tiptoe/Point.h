@@ -3,10 +3,10 @@
 #include "Double.h"
 
 struct Point {
-	double m_x, m_y;
+	Double m_x, m_y;
 
 	Point();
-	Point(double x, double y);
+	Point(const Double& x, const Double& y);
 
 	friend bool operator==(const Point& point_1, const Point& point_2) noexcept;
 	friend bool operator!=(const Point& point_1, const Point& point_2) noexcept;
