@@ -11,7 +11,7 @@ static double get_unreachable_maximum(const Graph_t& graph) {
 
 double dijkstra_tiptoe(const Graph_t& graph, const Vertex_t& start, const Vertex_t& finish) {
 	if (graph.find(start) == graph.cend() || graph.find(finish) == graph.cend())
-		return Double(-1.0);
+		return -1.0;
 	
 	const double maximum = get_unreachable_maximum(graph);
 
@@ -29,15 +29,11 @@ double dijkstra_tiptoe(const Graph_t& graph, const Vertex_t& start, const Vertex
 		queue.pop_front();
 
 		for (const auto& [neighbor, edge_weight] : graph.at(vertex)) {
-			const auto& vertex_distance = distances.at(vertex);
-			auto& neighbor_distance = distances.at(neighbor);
-			const auto better_distance = vertex_distance + edge_weight;
-
-			if (better_distance < neighbor_distance) {
-				neighbor_distance = better_distance;
+			if (distances.at(vertex) + edge_weight < distances.at(neighbor)) {
+				distances.at(neighbor) = distances.at(vertex) + edge_weight;
 				queue.push_back(neighbor);
 			}
 		}
 	}
-	return are_equal(distances.at(finish), maximum) ? Double(-1.0) : distances.at(finish);
+	return are_equal(distances.at(finish), maximum) ? -1.0 : distances.at(finish);
 }

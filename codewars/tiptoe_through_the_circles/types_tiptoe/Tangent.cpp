@@ -26,5 +26,5 @@ bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept{
 
 std::size_t Tangent_hash::operator()(const Tangent& obj) const noexcept {
 	return Point_hash::call(obj.m_a) +
-		   Point_hash::call(obj.m_b);
+		   Point_hash::call(obj.m_b);										// symmetrical : hash(Tangent(a,b)) = hash(Tangent(b,a))
 }

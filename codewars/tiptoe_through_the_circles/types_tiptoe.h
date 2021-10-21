@@ -9,8 +9,8 @@
 #include "types_tiptoe/Point.h"
 #include "types_tiptoe/Tangent.h"
 
-//using Length_t = double;
-using Length_t = Double;
+using Length_t = double;
+//using Length_t = Double;
 using Length_t_hash = Double_hash;
 
 using Tangents_t = std::unordered_set<Tangent, Tangent_hash>;

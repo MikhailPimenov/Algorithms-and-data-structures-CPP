@@ -17,6 +17,7 @@ bool operator==(const Arc& arc_1, const Arc& arc_2) noexcept {
 
 std::size_t Arc_hash::operator()(const Arc& obj) const noexcept {
 	return Point_hash::call(obj.m_a) +
-    	   Point_hash::call(obj.m_b) +
-		   Double_hash::call(obj.m_length);
+   		   Point_hash::call(obj.m_b) +
+		   //Double_hash::call(obj.m_length);
+		   std::hash<double>{}(obj.m_length);
 }
