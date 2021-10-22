@@ -39,10 +39,52 @@
 #include <unordered_map>
 #include <unordered_set>
 
+/*
+The shortest path consists of tangents and arcs. 
+The idea is to build a graph, and then to find the shortest path
+using Dijkstra algorithm.
+Nodes in the graph - points. 
+All the points are on circumeferences of circles. 
+Weight of edge (edge cost) is either the length 
+of straight line between two points in case these points are 
+the ends of tangent, or the length of the arc in case 
+these points are on the circumeference of the same circle.
+
+The first step is to find all the tangents between every two circles.
+Two or four tangents between every two circles.
+The second step is to remove all tangents that can not exist because some
+of the circles can cover the path of the tangent (collision between tangent and circle).
+The third step is to find all the arcs between points on every circle.
+The fourth step is to remove all arcs that also can not exist because some
+of the circles can cover the curve of the arc (collision between arc and circle).
+The fifth step is to connect all the points according to what tangents and
+arcs the belong to.
+The sixth step is to find the shortest path in this graph using Dijkstra algorithm.
+
+Start point and finish point are considered as the circles with zero radius 
+Straight line between start and finish point is also considered as tangent.
+
+Complexity: O(n^4) 
+Given a number of circles n:
+Number of pairs circle-circle:                   n * (n - 1) / 2,                 O(n^2)
+Number of tangents:                              4 * n * (n - 1) / 2,             O(n^2)
+Number of points on each circle:                 4 * (n - 1) = m                  O(n)
+Number of arcs on each circle:                   m * (m - 1)                      O(m^2) = O(n^2)
+Number of arcs:                                  n * m * (m - 1)                  O(n^3)
+Number of points:                                n * m = k                        O(n^2)
+Number of circles to filter tangents:            n - 2                            O(n)
+Number of circles to filter arcs :               n - 1                            O(n)
+Filtering tangents:                              4 * n * (n - 1) / 2 * (n - 2)    O(n^3)
+Filtering arcs:                                  n * m * (m - 1) * (n - 1)        O(n^4)
+Complexity of Dijkstra algorithm for k nodes:                                     O(k^2) => O(n^4) 
+*/
+
+
 const double g_pi = atan(1.0) * 4.0;
 
 constexpr double g_epsilon = 1e-8;
 
+// Types ===============================================================================
 
 // compares two double number with certain epsilon
 bool are_equal(double a, double b, double epsilon = g_epsilon) {
@@ -126,6 +168,8 @@ bool operator!=(const Circle& circle_1, const Circle& circle_2) {
 	return !(circle_1 == circle_2);
 }
 
+// tangent between two circles. 
+// Consists of two points. Also has length and owners (two circles)
 struct Tangent {
 	Point m_a;
 	Point m_b;
@@ -205,6 +249,8 @@ double get_arc_length(const Point& a, const Point& b, const Circle& circle) {
 	return circle.m_radius * delta_angle;
 }
 
+// arc on the circle. 
+// Consists of two points. Also has length and includes its owner (circle)
 struct Arc {
 	Point m_a;
 	Point m_b;
@@ -234,13 +280,14 @@ struct Arc_hash {
 	
 bool operator==(const Arc& arc_1, const Arc& arc_2) noexcept {
 	return arc_1.m_a == arc_2.m_a &&
-		   arc_1.m_b == arc_2.m_b &&
-		   arc_1.m_owner->m_center == arc_2.m_owner->m_center &&
-		   are_equal(arc_1.m_length, arc_2.m_length);
+   		   arc_1.m_b == arc_2.m_b &&
+		   arc_1.m_owner->m_center == arc_2.m_owner->m_center;
 }
 bool operator!=(const Arc& arc_1, const Arc& arc_2) noexcept {
 	return !(arc_1 == arc_2);
 }
+
+// Data structures =====================================================================
 
 // type for length
 using Length_t = double;
@@ -266,6 +313,9 @@ using Queue_t = std::deque<Vertex_t>;
 using Distances_t = std::unordered_map<Vertex_t, Length_t, Vertex_t_hash>;;
 // to store graph - for dijkstra algorithm
 using Graph_t = std::unordered_map<Vertex_t, Vertices_t, Vertex_t_hash>;
+
+
+// Logic to build a graph =======================================================
 
 // returns true if (x_1 <= a <= x_2) or (x_2 <= a <= x_1) 
 bool is_between(double a, double x_1, double x_2) {
