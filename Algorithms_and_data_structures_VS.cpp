@@ -43,114 +43,87 @@ const double g_pi = atan(1.0) * 4.0;
 
 constexpr double g_epsilon = 1e-8;
 
-//constexpr long long int g_hashing_multiplier = 1e+18;
 
-
+// compares two double number with certain epsilon
 bool are_equal(double a, double b, double epsilon = g_epsilon) {
 	return a > b ? a - b < epsilon : b - a < epsilon;
 }
 
+// computes hash for double. This is needed for data structures
 struct Double_hash {
-	std::size_t operator()(double obj) const noexcept;
-	static std::size_t call(double obj) noexcept;
+	std::size_t operator()(double obj) const noexcept {
+		// completely wrong, but it only creates more nodes in graph
+		return std::hash<double>{}(obj);                         
+	}
+	static std::size_t call(double obj) noexcept {
+		static const Double_hash instance;
+		return instance(obj);
+	}
 };
-
-std::size_t Double_hash::operator()(double obj) const noexcept {
-	return std::hash<double>{}(obj);
-}
-
-std::size_t Double_hash::call(double obj) noexcept {
-	static const Double_hash instance;
-	return instance(obj);
-}
 
 
 struct Point {
 	double m_x, m_y;
 
-	Point();
-	Point(const double& x, const double& y);
-
-	friend bool operator==(const Point& point_1, const Point& point_2) noexcept;
-	friend bool operator!=(const Point& point_1, const Point& point_2) noexcept;
-
+	Point() : m_x(0.0), m_y(0.0) {}
+	Point(double x, double y) : m_x(x), m_y(y) {}
 };
 
+// computes hash for Point. This is needed for data structures
 struct Point_hash {
-	std::size_t operator()(const Point& obj) const noexcept;
-	static std::size_t call(const Point& obj) noexcept;
+	std::size_t operator()(const Point& obj) const noexcept {
+		const std::size_t x = std::hash<double>{}(obj.m_x);
+		const std::size_t y = std::hash<double>{}(obj.m_y);
+		return (x + y) * (x + y + 1) / 2 + y;							// Cantor's pair
+	}
+	static std::size_t call(const Point& obj) noexcept {
+		static const Point_hash instance;								// singleton
+		return instance(obj);
+	}
 };
 
-Point::Point() : m_x(0.0), m_y(0.0) {
-
-}
-Point::Point(const double& x, const double& y) : m_x(x), m_y(y) {
-
-}
-
+// returns true if point_1 == point_2
 bool operator==(const Point& point_1, const Point& point_2) noexcept {
-	return are_equal(point_1.m_x, point_2.m_x) && are_equal(point_1.m_y, point_2.m_y);
+	return are_equal(point_1.m_x, point_2.m_x) && 
+		   are_equal(point_1.m_y, point_2.m_y);
 }
 
+// returns true if point_1 != point_2
 bool operator!=(const Point& point_1, const Point& point_2) noexcept {
 	return !(point_1 == point_2);
 }
 
-std::size_t Point_hash::operator()(const Point& obj) const noexcept {
-	const std::size_t x = std::hash<double>{}(obj.m_x);
-	const std::size_t y = std::hash<double>{}(obj.m_y);
-	return (x + y) * (x + y + 1) / 2 + y;							// Cantor's pair
-}
-
-std::size_t Point_hash::call(const Point& obj) noexcept {
-	static const Point_hash instance;								// singleton
-	return instance(obj);
-}
-
-
+// returns distance between two points
 double get_distance(const Point& p1, const Point& p2) {
 	return std::sqrt(std::pow(p1.m_x - p2.m_x, 2.0) +
 		std::pow(p1.m_y - p2.m_y, 2.0));
 }
 
-
 struct Circle {
 	Point m_center;
 	double m_radius;
 
-	Circle();
-	Circle(Point center, double radius);
-	Circle(double x_center, double y_center, double radius);
-
-	friend bool operator==(const Circle& circle_1, const Circle& circle_2);
-	friend bool operator!=(const Circle& circle_1, const Circle& circle_2);
+	Circle() : m_center(), m_radius(1.0) {}
+	Circle(const Point &center, double radius) : m_center(center), m_radius(radius) {}
+	Circle(double x_center, double y_center, double radius) : m_center(x_center, y_center), m_radius(radius) {}
 };
 
+// computes hash for Circle. This is needed for data structures
 struct Circle_hash {
-	std::size_t operator()(const Circle& obj) const noexcept;
+	std::size_t operator()(const Circle& obj) const noexcept {
+		return Point_hash::call(obj.m_center) +
+			   Double_hash::call(obj.m_radius);
+	}
 };
 
-
-Circle::Circle() : m_center(), m_radius(1.0) {
-
-}
-Circle::Circle(Point center, double radius) : m_center(center), m_radius(radius) {
-
-}
-Circle::Circle(double x_center, double y_center, double radius) : m_center(x_center, y_center), m_radius(radius) {
-
-}
-
+// returns true if circle_1 == circle_2
 bool operator==(const Circle& circle_1, const Circle& circle_2) {
-	return are_equal(circle_1.m_radius, circle_2.m_radius) && circle_1.m_center == circle_2.m_center;
+	return are_equal(circle_1.m_radius, circle_2.m_radius) && 
+		   circle_1.m_center == circle_2.m_center;
 }
+// returns true if circle_1 != circle_2
 bool operator!=(const Circle& circle_1, const Circle& circle_2) {
 	return !(circle_1 == circle_2);
-}
-
-std::size_t Circle_hash::operator()(const Circle& obj) const noexcept {
-	return Point_hash::call(obj.m_center) +
-		Double_hash::call(obj.m_radius);
 }
 
 struct Tangent {
@@ -160,30 +133,29 @@ struct Tangent {
 	const Circle* m_circle_a;
 	const Circle* m_circle_b;
 
-	Tangent(const Point& a, const Point& b, const Circle& circle_a, const Circle& circle_b);
-	friend bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept;
-	friend bool operator!=(const Tangent& tangent_1, const Tangent& tangent_2) noexcept;
+	Tangent(
+		const Point& a, 
+		const Point& b, 
+		const Circle& circle_a, 
+		const Circle& circle_b
+	) : 
+		m_a(a),
+		m_b(b),
+		m_length(get_distance(a, b)),
+		m_circle_a(&circle_a),
+		m_circle_b(&circle_b) {
+	}
 };
 
-
+// computes hash for Tangent. This is needed for data structures
 struct Tangent_hash {
-	std::size_t operator()(const Tangent& obj) const noexcept;
+	std::size_t operator()(const Tangent& obj) const noexcept {
+		return Point_hash::call(obj.m_a) +
+			Point_hash::call(obj.m_b);										// symmetrical : hash(Tangent(a,b)) = hash(Tangent(b,a))
+	}
 };
 
-
-Tangent::Tangent(
-	const Point& a,
-	const Point& b,
-	const Circle& circle_a,
-	const Circle& circle_b
-) : m_a(a),
-m_b(b),
-m_length(get_distance(a, b)),
-m_circle_a(&circle_a),
-m_circle_b(&circle_b) {
-
-}
-
+// returns true if tangent_1 == tangent_2
 bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept {
 	return (tangent_1.m_a == tangent_2.m_a &&
 		tangent_1.m_b == tangent_2.m_b &&
@@ -195,15 +167,12 @@ bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept {
 			*tangent_1.m_circle_b == *tangent_2.m_circle_a);
 }
 
+// returns true if tangent_1 != tangent_2
 bool operator!=(const Tangent& tangent_1, const Tangent& tangent_2) noexcept {
 	return !(tangent_1 == tangent_2);
 }
 
-std::size_t Tangent_hash::operator()(const Tangent& obj) const noexcept {
-	return Point_hash::call(obj.m_a) +
-		Point_hash::call(obj.m_b);										// symmetrical : hash(Tangent(a,b)) = hash(Tangent(b,a))
-}
-
+// returns an angle between line(left_side, center) and positive direction of x axis
 double get_angle_with_x_axis(const Point& left_side, const Point& center) {
 	if (are_equal(left_side.m_x, center.m_x)) {
 		if (left_side.m_y < center.m_y)
@@ -222,6 +191,7 @@ double get_angle_with_x_axis(const Point& left_side, const Point& center) {
 	return angle;
 }
 
+// returns the length of arc
 double get_arc_length(const Point& a, const Point& b, const Circle& circle) {
 
 	const double angle_a = get_angle_with_x_axis(a, circle.m_center);
@@ -235,72 +205,77 @@ double get_arc_length(const Point& a, const Point& b, const Circle& circle) {
 	return circle.m_radius * delta_angle;
 }
 
-
 struct Arc {
 	Point m_a;
 	Point m_b;
 	double m_length;
 	const Circle* m_owner;
 
-	Arc(const Point& a, const Point& b, const Circle& owner);
-
-	friend bool operator==(const Arc& arc_1, const Arc& arc_2) noexcept;
+	Arc(
+		const Point& a, 
+		const Point& b, 
+		const Circle& owner
+	) : 
+		m_a{ a },
+		m_b{ b },
+		m_length{ get_arc_length(a, b, owner) },
+		m_owner{ &owner } {
+	}
 };
 
+// computes hash for Arc. This is needed for data structures
 struct Arc_hash {
-	std::size_t operator()(const Arc& obj) const noexcept;
+	std::size_t operator()(const Arc& obj) const noexcept {
+		return Point_hash::call(obj.m_a) +
+			   Point_hash::call(obj.m_b) +
+			   std::hash<double>{}(obj.m_length);
+	}
 };
-
-
-Arc::Arc(const Point& a, const Point& b, const Circle& owner)
-	: m_a{ a },
-	m_b{ b },
-	m_length{ get_arc_length(a, b, owner) },
-	m_owner{ &owner } {
-
-}
-
+	
 bool operator==(const Arc& arc_1, const Arc& arc_2) noexcept {
 	return arc_1.m_a == arc_2.m_a &&
-		arc_1.m_b == arc_2.m_b &&
-		arc_1.m_owner->m_center == arc_2.m_owner->m_center &&
-		are_equal(arc_1.m_length, arc_2.m_length);
+		   arc_1.m_b == arc_2.m_b &&
+		   arc_1.m_owner->m_center == arc_2.m_owner->m_center &&
+		   are_equal(arc_1.m_length, arc_2.m_length);
+}
+bool operator!=(const Arc& arc_1, const Arc& arc_2) noexcept {
+	return !(arc_1 == arc_2);
 }
 
-std::size_t Arc_hash::operator()(const Arc& obj) const noexcept {
-	return Point_hash::call(obj.m_a) +
-		Point_hash::call(obj.m_b) +
-		std::hash<double>{}(obj.m_length);
-}
-
-
+// type for length
 using Length_t = double;
+// hashing length
 using Length_t_hash = Double_hash;
+// to store tangents
 using Tangents_t = std::unordered_set<Tangent, Tangent_hash>;
+// to store arcs
 using Arcs_t = std::unordered_set<Arc, Arc_hash>;
+// to store points
 using Points_t = std::unordered_set<Point, Point_hash>;
+// to store points according to circle they belong to
 using Points_on_circles_t = std::unordered_map<Circle, Points_t, Circle_hash>;
+// node type for graph
 using Vertex_t = Point;
+// hashing node
 using Vertex_t_hash = Point_hash;
+// to store neighbors for the node in the graph with the cost (distance) of the edges
 using Vertices_t = std::unordered_multimap<Vertex_t, Length_t, Vertex_t_hash>;
+// queue - it is needed for dijkstra algorithm (breadth first search)
 using Queue_t = std::deque<Vertex_t>;
+// to store shortest distances - for dijkstra algorithm
 using Distances_t = std::unordered_map<Vertex_t, Length_t, Vertex_t_hash>;;
+// to store graph - for dijkstra algorithm
 using Graph_t = std::unordered_map<Vertex_t, Vertices_t, Vertex_t_hash>;
 
-
-
-
+// returns true if (x_1 <= a <= x_2) or (x_2 <= a <= x_1) 
 bool is_between(double a, double x_1, double x_2) {
-	return (x_1 < a&& a < x_2) ||
-		   (x_2 < a&& a < x_1) ||
+	return (x_1 < a && a < x_2) ||
+		   (x_2 < a && a < x_1) ||
 		   are_equal(a, x_1) ||
 		   are_equal(a, x_2);
 }
 
-
-
-
-
+// returns distance between the center of the circle and the line tangent lays on
 double get_distance(const Circle& circle, const Tangent& tangent) {
 	// see distance between point and line
 	const double numerator = std::abs(
@@ -311,22 +286,6 @@ double get_distance(const Circle& circle, const Tangent& tangent) {
 
 	return numerator / distance;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // returns true if the projection of point on the line(point_1, point_2) lays between point_1 and point_2
 bool is_point_between_points(const Point& point, const Point& point_1, const Point& point_2) {
@@ -344,7 +303,7 @@ bool is_point_between_points(const Point& point, const Point& point_1, const Poi
 	return is_between(x_n, point_1.m_x, point_2.m_x);
 }
 
-
+// returns true if tangent can not exist because circle covers it (or its part)
 bool there_is_collision_between_tangent_and_circle(const Tangent& tangent, const Circle& circle) {
 
 	// circle is far enough from line on which tangent is
@@ -363,8 +322,7 @@ bool there_is_collision_between_tangent_and_circle(const Tangent& tangent, const
 	return true;
 }
 
-
-
+// removes all the tangents which can not exist
 void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
 	for (const auto& circle : circles) {
 		for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
@@ -379,6 +337,7 @@ void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
 	}
 }
 
+// returns true if arc can not exist because circle covers it (or its part)
 bool there_is_collision_between_arc_and_circle(const Arc& arc, const Circle& circle) {
 
 	const double distance = get_distance(arc.m_owner->m_center, circle.m_center);
@@ -416,6 +375,7 @@ bool there_is_collision_between_arc_and_circle(const Arc& arc, const Circle& cir
 	return true;
 }
 
+// removes all the arcs which can not exist
 void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
 	for (const auto& circle : circles) {
 		for (auto arc = arcs.cbegin(); arc != arcs.cend();) {
@@ -430,6 +390,7 @@ void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
 	}
 }
 
+// returns all possible tangents between these two circles
 Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 
 	// circles have common center - no tangents
@@ -529,6 +490,7 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 	return tangents;
 }
 
+// returns all possible arcs on this circle
 Arcs_t get_arcs(const Points_t& points, const Circle& circle) {
 	Arcs_t arcs;
 	arcs.reserve(points.size() * (points.size() - 1u));
@@ -545,7 +507,7 @@ Arcs_t get_arcs(const Points_t& points, const Circle& circle) {
 	return arcs;
 }
 
-
+// calculates distance which can not be exceeded during passing through this graph 
 double get_unreachable_maximum(const Graph_t& graph) {
 	double maximum = 0.0;
 	for (const auto& [vertex, neighbors] : graph)
@@ -555,7 +517,11 @@ double get_unreachable_maximum(const Graph_t& graph) {
 	return maximum * 10.0;
 }
 
+// dijkstra algorithm
 double dijkstra_tiptoe(const Graph_t& graph, const Vertex_t& start, const Vertex_t& finish) {
+	// modification for this particular task: 
+	// if there is no tangent to start and/or finish point(s), 
+	// it is (they are) not included in the graph 
 	if (graph.find(start) == graph.cend() || graph.find(finish) == graph.cend())
 		return -1.0;
 
@@ -584,8 +550,8 @@ double dijkstra_tiptoe(const Graph_t& graph, const Vertex_t& start, const Vertex
 	return are_equal(distances.at(finish), maximum) ? -1.0 : distances.at(finish);
 }
 
+// returns all points. Key - circle which point belongs to
 Points_on_circles_t get_points(const Tangents_t& tangents) {
-	// parsing all tangents to find out which points belongs to which circles
 	Points_on_circles_t points;
 	for (const auto& tangent : tangents) {
 		if (points.find(*tangent.m_circle_a) == points.cend())
@@ -600,6 +566,7 @@ Points_on_circles_t get_points(const Tangents_t& tangents) {
 	return points;
 }
 
+// returns graph for this entire task
 Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
 
 	Tangents_t tangents;
