@@ -1,6 +1,8 @@
 #include <iomanip>
 #include <iostream>
 
+#include "timer/timer.h"
+
 //#include "codewars/tiptoe_through_the_circles/get_graph/get_tangents/get_tangents.h"
 //#include "codewars/tiptoe_through_the_circles/get_graph/get_tangents/test_get_tangents.h"
 //#include "codewars/tiptoe_through_the_circles/get_graph/get_arcs/get_arcs.h"
@@ -36,6 +38,7 @@
 
 #include <cmath>
 #include <deque>
+#include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -64,7 +67,7 @@ The sixth step is to find the shortest path in this graph using Dijkstra algorit
 Start point and finish point are considered as the circles with zero radius 
 Straight line between start and finish point is also considered as tangent.
 
-Complexity: O(n^4) 
+Time complexity: O(n^4) 
 Given a number of circles n:
 Number of pairs circle-circle:                   n * (n - 1) / 2,                 O(n^2)
 Number of tangents:                              4 * n * (n - 1) / 2,             O(n^2)
@@ -77,6 +80,14 @@ Number of circles to filter arcs :               n - 1                          
 Filtering tangents:                              4 * n * (n - 1) / 2 * (n - 2)    O(n^3)
 Filtering arcs:                                  n * m * (m - 1) * (n - 1)        O(n^4)
 Complexity of Dijkstra algorithm for k nodes:                                     O(k^2) => O(n^4) 
+
+Solution may have not optimal space complexity, because some data is duplicated
+in several data structures instead of just having its pointers/references.
+
+Graph also has duplicated nodes because of approximation of double. 
+For example both Point(1.0, 0.0) and Point(0.99999999999999967, 0.0)
+are in graph. But both of them have the same merged list neighbours which 
+includes all the neighbors from both lists of neighbors before merging.
 */
 
 
@@ -105,17 +116,17 @@ struct Double_hash {
 
 
 struct Point {
-	double m_x, m_y;
+	double x, y;
 
-	Point() : m_x(0.0), m_y(0.0) {}
-	Point(double x, double y) : m_x(x), m_y(y) {}
+	Point() : x(0.0), y(0.0) {}
+	Point(double x, double y) : x(x), y(y) {}
 };
 
 // computes hash for Point. This is needed for data structures
 struct Point_hash {
 	std::size_t operator()(const Point& obj) const noexcept {
-		const std::size_t x = std::hash<double>{}(obj.m_x);
-		const std::size_t y = std::hash<double>{}(obj.m_y);
+		const std::size_t x = Double_hash::call(obj.x);
+		const std::size_t y = Double_hash::call(obj.y);
 		return (x + y) * (x + y + 1) / 2 + y;							// Cantor's pair
 	}
 	static std::size_t call(const Point& obj) noexcept {
@@ -126,8 +137,8 @@ struct Point_hash {
 
 // returns true if point_1 == point_2
 bool operator==(const Point& point_1, const Point& point_2) noexcept {
-	return are_equal(point_1.m_x, point_2.m_x) && 
-		   are_equal(point_1.m_y, point_2.m_y);
+	return are_equal(point_1.x, point_2.x) && 
+		   are_equal(point_1.y, point_2.y);
 }
 
 // returns true if point_1 != point_2
@@ -137,32 +148,50 @@ bool operator!=(const Point& point_1, const Point& point_2) noexcept {
 
 // returns distance between two points
 double get_distance(const Point& p1, const Point& p2) {
-	return std::sqrt(std::pow(p1.m_x - p2.m_x, 2.0) +
-		std::pow(p1.m_y - p2.m_y, 2.0));
+	return std::sqrt(std::pow(p1.x - p2.x, 2.0) +
+		std::pow(p1.y - p2.y, 2.0));
 }
 
 struct Circle {
-	Point m_center;
-	double m_radius;
+	Point ctr;
+	double r;
 
-	Circle() : m_center(), m_radius(1.0) {}
-	Circle(const Point &center, double radius) : m_center(center), m_radius(radius) {}
-	Circle(double x_center, double y_center, double radius) : m_center(x_center, y_center), m_radius(radius) {}
+	Circle() : ctr(), r(1.0) {}
+	Circle(const Point &center, double radius) : ctr(center), r(radius) {}
+	Circle(double x_center, double y_center, double radius) : ctr(x_center, y_center), r(radius) {}
 };
 
 // computes hash for Circle. This is needed for data structures
 struct Circle_hash {
 	std::size_t operator()(const Circle& obj) const noexcept {
-		return Point_hash::call(obj.m_center) +
-			   Double_hash::call(obj.m_radius);
+		return Point_hash::call(obj.ctr) +
+			   Double_hash::call(obj.r);
+	}
+	static std::size_t call(const Circle& obj) noexcept {
+		static const Circle_hash instance;
+		return instance(obj);
+	}
+};
+
+// computes hash for pair of circles. This is needed for data structures
+struct Pair_circle_hash {
+	std::size_t operator()(const std::pair<Circle, Circle>& pair) const noexcept {
+		return Circle_hash::call(pair.first) + Circle_hash::call(pair.second);		// symmetrical
 	}
 };
 
 // returns true if circle_1 == circle_2
 bool operator==(const Circle& circle_1, const Circle& circle_2) {
-	return are_equal(circle_1.m_radius, circle_2.m_radius) && 
-		   circle_1.m_center == circle_2.m_center;
+	return are_equal(circle_1.r, circle_2.r) && 
+		   circle_1.ctr == circle_2.ctr;
 }
+
+// returns true if pair_1 == pair_2 regardless of order of first and second circle
+bool operator==(const std::pair<Circle, Circle>& pair_1, const std::pair<Circle, Circle>& pair_2) {
+	return (pair_1.first == pair_2.first && pair_1.second == pair_2.second) ||
+		   (pair_1.first == pair_2.second && pair_1.second == pair_2.first);
+}
+
 // returns true if circle_1 != circle_2
 bool operator!=(const Circle& circle_1, const Circle& circle_2) {
 	return !(circle_1 == circle_2);
@@ -218,18 +247,18 @@ bool operator!=(const Tangent& tangent_1, const Tangent& tangent_2) noexcept {
 
 // returns an angle between line(left_side, center) and positive direction of x axis
 double get_angle_with_x_axis(const Point& left_side, const Point& center) {
-	if (are_equal(left_side.m_x, center.m_x)) {
-		if (left_side.m_y < center.m_y)
+	if (are_equal(left_side.x, center.x)) {
+		if (left_side.y < center.y)
 			return 3.0 * g_pi / 2.0;
 		return g_pi / 2.0;
 	}
 
-	const double angle = atan((left_side.m_y - center.m_y) / (left_side.m_x - center.m_x));
+	const double angle = atan((left_side.y - center.y) / (left_side.x - center.x));
 
-	if (left_side.m_x < center.m_x)
+	if (left_side.x < center.x)
 		return angle + g_pi;
 
-	if (left_side.m_y < center.m_y)
+	if (left_side.y < center.y)
 		return angle + 2.0 * g_pi;
 
 	return angle;
@@ -238,15 +267,15 @@ double get_angle_with_x_axis(const Point& left_side, const Point& center) {
 // returns the length of arc
 double get_arc_length(const Point& a, const Point& b, const Circle& circle) {
 
-	const double angle_a = get_angle_with_x_axis(a, circle.m_center);
-	const double angle_b = get_angle_with_x_axis(b, circle.m_center);
+	const double angle_a = get_angle_with_x_axis(a, circle.ctr);
+	const double angle_b = get_angle_with_x_axis(b, circle.ctr);
 
 	// angles from 0 to 2*pi are considered
 	const double delta_angle =
 		angle_a > angle_b ? angle_a - angle_b :
 		2.0 * g_pi + angle_a - angle_b;
 
-	return circle.m_radius * delta_angle;
+	return circle.r * delta_angle;
 }
 
 // arc on the circle. 
@@ -277,12 +306,15 @@ struct Arc_hash {
 			   std::hash<double>{}(obj.m_length);
 	}
 };
-	
+
+// returns true if arc_1 == arc_2
 bool operator==(const Arc& arc_1, const Arc& arc_2) noexcept {
 	return arc_1.m_a == arc_2.m_a &&
    		   arc_1.m_b == arc_2.m_b &&
-		   arc_1.m_owner->m_center == arc_2.m_owner->m_center;
+		   arc_1.m_owner->ctr == arc_2.m_owner->ctr;
 }
+
+// returns true if arc_1 != arc_2
 bool operator!=(const Arc& arc_1, const Arc& arc_2) noexcept {
 	return !(arc_1 == arc_2);
 }
@@ -301,6 +333,12 @@ using Arcs_t = std::unordered_set<Arc, Arc_hash>;
 using Points_t = std::unordered_set<Point, Point_hash>;
 // to store points according to circle they belong to
 using Points_on_circles_t = std::unordered_map<Circle, Points_t, Circle_hash>;
+// to store circles
+using Circles_t = std::unordered_set<Circle, Circle_hash>;
+// to store potentially colliding circles relatively to tangents between certain pair of circles
+using Colliding_circles_with_tangent_t = std::unordered_map<std::pair<Circle, Circle>, Circles_t, Pair_circle_hash>;
+// to store potentially colliding circles relatively to all arcs of certain circle
+using Colliding_circles_with_arc_t = std::unordered_map<Circle, Circles_t, Circle_hash>;
 // node type for graph
 using Vertex_t = Point;
 // hashing node
@@ -329,8 +367,8 @@ bool is_between(double a, double x_1, double x_2) {
 double get_distance(const Circle& circle, const Tangent& tangent) {
 	// see distance between point and line
 	const double numerator = std::abs(
-		(tangent.m_b.m_x - tangent.m_a.m_x) * (tangent.m_a.m_y - circle.m_center.m_y) -
-		(tangent.m_a.m_x - circle.m_center.m_x) * (tangent.m_b.m_y - tangent.m_a.m_y)
+		(tangent.m_b.x - tangent.m_a.x) * (tangent.m_a.y - circle.ctr.y) -
+		(tangent.m_a.x - circle.ctr.x) * (tangent.m_b.y - tangent.m_a.y)
 	);
 	const double distance = get_distance(tangent.m_a, tangent.m_b);
 
@@ -339,71 +377,118 @@ double get_distance(const Circle& circle, const Tangent& tangent) {
 
 // returns true if the projection of point on the line(point_1, point_2) lays between point_1 and point_2
 bool is_point_between_points(const Point& point, const Point& point_1, const Point& point_2) {
-	if (are_equal(point_1.m_x, point_2.m_x))
-		return is_between(point.m_y, point_1.m_y, point_2.m_y);
+	if (are_equal(point_1.x, point_2.x))
+		return is_between(point.y, point_1.y, point_2.y);
 
 	const double distance = get_distance(point_1, point_2);
 
-	const double k = ((point_2.m_y - point_1.m_y) * (point.m_x - point_1.m_x) -
-		(point_2.m_x - point_1.m_x) * (point.m_y - point_1.m_y)) /
+	const double k = ((point_2.y - point_1.y) * (point.x - point_1.x) -
+		(point_2.x - point_1.x) * (point.y - point_1.y)) /
 		(distance * distance);
 
-	const double x_n = point.m_x - k * (point_2.m_y - point_1.m_y);
+	const double x_n = point.x - k * (point_2.y - point_1.y);
 
-	return is_between(x_n, point_1.m_x, point_2.m_x);
+	return is_between(x_n, point_1.x, point_2.x);
 }
 
 // returns true if tangent can not exist because circle covers it (or its part)
 bool there_is_collision_between_tangent_and_circle(const Tangent& tangent, const Circle& circle) {
 
 	// circle is far enough from line on which tangent is
-	if (get_distance(circle, tangent) > circle.m_radius)
+	if (get_distance(circle, tangent) > circle.r)
 		return false;
 
 	// circle intersects with tangent between tangent's ends
-	if (is_point_between_points(circle.m_center, tangent.m_a, tangent.m_b))
+	if (is_point_between_points(circle.ctr, tangent.m_a, tangent.m_b))
 		return true;
 
 	// circle covers one of tangent's ends
-	if (get_distance(circle.m_center, tangent.m_a) > circle.m_radius &&
-		get_distance(circle.m_center, tangent.m_b) > circle.m_radius)
+	if (get_distance(circle.ctr, tangent.m_a) > circle.r &&
+		get_distance(circle.ctr, tangent.m_b) > circle.r)
 		return false;
 
 	return true;
 }
 
-// removes all the tangents which can not exist
-void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
-	for (const auto& circle : circles) {
-		for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-			if (*(tangent->m_circle_a) != circle && *(tangent->m_circle_b) != circle) {
-				if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
-					tangent = tangents.erase(tangent);
-					continue;
+// returns all circles which can potentially collide with tangents between certain pair of circles
+Colliding_circles_with_tangent_t get_colliding_circles_with_tangents(const std::vector<Circle>& circles) {
+	Colliding_circles_with_tangent_t colliding_circles;
+	colliding_circles.reserve((circles.size() * (circles.size() - 1u)));
+
+	for (auto circle_1 = circles.cbegin();
+		circle_1 != circles.cend();
+		++circle_1)
+	{
+		for (auto circle_2 = circle_1 + 1u;
+			circle_2 != circles.cend();
+			++circle_2)
+		{
+
+			colliding_circles.insert(
+				std::pair<std::pair<Circle, Circle>, Circles_t>(
+					std::pair<Circle, Circle>(*circle_1, *circle_2), Circles_t()));
+
+			const double radius = ((circle_1->r > circle_2->r) ? circle_1->r : circle_2->r);
+
+			for (auto circle = circles.cbegin();
+				circle != circles.cend();
+				++circle)
+			{
+				if ((*circle != *circle_1) && (*circle != *circle_2)) {
+					const double distance =
+						get_distance(*circle, Tangent(circle_1->ctr, circle_2->ctr, *circle_1, *circle_2));
+
+					if (distance < radius + circle->r || are_equal(distance, radius + circle->r))
+						colliding_circles.at(std::pair<Circle, Circle>(*circle_1, *circle_2)).insert(*circle);
 				}
 			}
-			++tangent;
 		}
+	}
+
+	return colliding_circles;
+}
+
+// removes all the tangents which can not exist
+void filter_tangents_fast(Tangents_t& tangents, const std::vector<Circle>& circles) {
+	const auto colliding_circles = get_colliding_circles_with_tangents(circles);
+	
+	for (auto tangent = tangents.cbegin(); tangent != tangents.cend(); ) {
+		bool there_is_collision{ false };
+		const auto& pair = std::pair<const Circle, const Circle>(*(tangent->m_circle_a), *(tangent->m_circle_b));
+		
+		for (const auto& circle : colliding_circles.at(pair)) {
+			if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
+				there_is_collision = true;
+				break;
+			}
+		}
+
+		if (there_is_collision) {
+			tangent = tangents.erase(tangent);
+			continue;
+		}
+
+		++tangent;
 	}
 }
 
 // returns true if arc can not exist because circle covers it (or its part)
 bool there_is_collision_between_arc_and_circle(const Arc& arc, const Circle& circle) {
 
-	const double distance = get_distance(arc.m_owner->m_center, circle.m_center);
+	const double distance = get_distance(arc.m_owner->ctr, circle.ctr);
 
 
-	if (distance > arc.m_owner->m_radius + circle.m_radius ||               // arc and circle not intersect 
-		arc.m_owner->m_radius > distance + circle.m_radius ||               // circle is deep inside arc and does not touch arc 
-		are_equal(arc.m_owner->m_radius, distance + circle.m_radius))       // circle is inside arc, but touches it
+	if (distance > arc.m_owner->r + circle.r ||               // arc and circle not intersect 
+		arc.m_owner->r > distance + circle.r ||               // circle is deep inside arc and does not touch arc 
+		are_equal(arc.m_owner->r, distance + circle.r))       // circle is inside arc, but touches it
 		return false;
 
 
-	// circle covers circumference of arc's owner
+	// circle covers circumference of arc's owner -> there might be collision
 
-	const double angle_b = get_angle_with_x_axis(arc.m_b, arc.m_owner->m_center);
-	const double angle = get_angle_with_x_axis(circle.m_center, arc.m_owner->m_center);
-	const double angle_a = get_angle_with_x_axis(arc.m_a, arc.m_owner->m_center);
+	const double angle_b = get_angle_with_x_axis(arc.m_b, arc.m_owner->ctr);
+	const double angle = get_angle_with_x_axis(circle.ctr, arc.m_owner->ctr);
+	const double angle_a = get_angle_with_x_axis(arc.m_a, arc.m_owner->ctr);
 
 	// considering angles only from 0 to 2*pi
 	const double angle_a_rotated = angle_a > angle_b ?
@@ -418,25 +503,52 @@ bool there_is_collision_between_arc_and_circle(const Arc& arc, const Circle& cir
 		return true;
 
 	// circle covers one of arc's ends
-	if (get_distance(arc.m_a, circle.m_center) > circle.m_radius &&
-		get_distance(arc.m_b, circle.m_center) > circle.m_radius)
+	if (get_distance(arc.m_a, circle.ctr) > circle.r &&
+		get_distance(arc.m_b, circle.ctr) > circle.r)
 		return false;
 
 	return true;
 }
 
-// removes all the arcs which can not exist
-void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
+// returns all circles which can potentially collide with arcs on certain circle
+Colliding_circles_with_arc_t get_colliding_circles_with_arc(const std::vector<Circle>& circles) {
+	Colliding_circles_with_arc_t colliding_circles;
+	colliding_circles.reserve(circles.size());
+
+	for (const auto& circle : circles)
+		colliding_circles.insert(std::pair<Circle, Circles_t>(circle, Circles_t())); // move to next cycle
+
 	for (const auto& circle : circles) {
-		for (auto arc = arcs.cbegin(); arc != arcs.cend();) {
-			if (*(arc->m_owner) != circle) {
-				if (there_is_collision_between_arc_and_circle(*arc, circle)) {
-					arc = arcs.erase(arc);
-					continue;
-				}
-			}
-			++arc;
+		for (const auto& covering_circle : circles) {
+			const auto distance = get_distance(circle.ctr, covering_circle.ctr);
+			if ((distance < circle.r + covering_circle.r ||
+				are_equal(distance, circle.r + covering_circle.r)) &&
+				circle.r < distance + covering_circle.r)
+				colliding_circles.at(circle).insert(covering_circle);
 		}
+	}
+
+	return colliding_circles;
+}
+
+// removes all the arcs which can not exist
+void filter_arcs_fast(Arcs_t& arcs, const std::vector<Circle>& circles) {
+	const auto colliding_circles = get_colliding_circles_with_arc(circles);
+	for (auto arc = arcs.cbegin(); arc != arcs.cend(); ) {
+		bool there_is_collision { false };
+		for (const auto& circle : colliding_circles.at(*(arc->m_owner))) {
+			if (there_is_collision_between_arc_and_circle(*arc, circle)) {
+				there_is_collision = true;
+				break;
+			}
+		}
+
+		if (there_is_collision) {
+			arc = arcs.erase(arc);
+			continue;
+		}
+		
+		++arc;
 	}
 }
 
@@ -444,34 +556,34 @@ void filter_arcs(Arcs_t& arcs, const std::vector<Circle>& circles) {
 Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 
 	// circles have common center - no tangents
-	if (circle_1.m_center == circle_2.m_center)
+	if (circle_1.ctr == circle_2.ctr)
 		return {};
 
 	// one circle is inside another one or have only one common point - no tangents
-	const double distance_between_circles = get_distance(circle_1.m_center, circle_2.m_center);
-	if (are_equal(distance_between_circles + circle_1.m_radius, circle_2.m_radius) ||
-		are_equal(distance_between_circles + circle_2.m_radius, circle_1.m_radius) ||
-		distance_between_circles + circle_1.m_radius < circle_2.m_radius ||
-		distance_between_circles + circle_2.m_radius < circle_1.m_radius)
+	const double distance_between_circles = get_distance(circle_1.ctr, circle_2.ctr);
+	if (are_equal(distance_between_circles + circle_1.r, circle_2.r) ||
+		are_equal(distance_between_circles + circle_2.r, circle_1.r) ||
+		distance_between_circles + circle_1.r < circle_2.r ||
+		distance_between_circles + circle_2.r < circle_1.r)
 		return {};
 
 	// circles intersects - no inner tangents
 	bool no_inner_tangents = false;
-	if (distance_between_circles < circle_1.m_radius + circle_2.m_radius ||
-		are_equal(circle_1.m_radius + circle_2.m_radius, distance_between_circles))
+	if (distance_between_circles < circle_1.r + circle_2.r ||
+		are_equal(circle_1.r + circle_2.r, distance_between_circles))
 		no_inner_tangents = true;
 
 	const auto& circle_b =
-		circle_2.m_center.m_y >= circle_1.m_center.m_y ? circle_2 : circle_1;  // upper circle
+		circle_2.ctr.y >= circle_1.ctr.y ? circle_2 : circle_1;  // upper circle
 	const auto& circle_a =
-		circle_2.m_center.m_y < circle_1.m_center.m_y ? circle_2 : circle_1;   // lower circle
+		circle_2.ctr.y < circle_1.ctr.y ? circle_2 : circle_1;   // lower circle
 
-	const double r_a = circle_a.m_radius;
-	const double r_b = circle_b.m_radius;
-	const double xo_a = circle_a.m_center.m_x;
-	const double yo_a = circle_a.m_center.m_y;
-	const double xo_b = circle_b.m_center.m_x;
-	const double yo_b = circle_b.m_center.m_y;
+	const double r_a = circle_a.r;
+	const double r_b = circle_b.r;
+	const double xo_a = circle_a.ctr.x;
+	const double yo_a = circle_a.ctr.y;
+	const double xo_b = circle_b.ctr.x;
+	const double yo_b = circle_b.ctr.y;
 
 
 	const double angle_sum_outer = std::asin((r_b - r_a) / distance_between_circles) +
@@ -548,6 +660,7 @@ Arcs_t get_arcs(const Points_t& points, const Circle& circle) {
 	for (const auto& point_a : points) {
 		for (const auto& point_b : points) {
 			if (point_a != point_b) {
+			//if (Point_hash::call(point_a) != Point_hash::call(point_b)) {
 				arcs.emplace(point_a, point_b, circle);
 				arcs.emplace(point_b, point_a, circle);
 			}
@@ -601,7 +714,7 @@ double dijkstra_tiptoe(const Graph_t& graph, const Vertex_t& start, const Vertex
 }
 
 // returns all points. Key - circle which point belongs to
-Points_on_circles_t get_points(const Tangents_t& tangents) {
+Points_on_circles_t get_points_on_circles(const Tangents_t& tangents) {
 	Points_on_circles_t points;
 	for (const auto& tangent : tangents) {
 		if (points.find(*tangent.m_circle_a) == points.cend())
@@ -616,84 +729,131 @@ Points_on_circles_t get_points(const Tangents_t& tangents) {
 	return points;
 }
 
-// returns graph for this entire task
-Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
-
-	Tangents_t tangents;
-	tangents.reserve(4.0 * (circles.size() + 2u) * (circles.size() + 1u));
-
-	// finding all tangents
+// finds all tangents
+void add_tangents(Tangents_t &tangents, const std::vector<Circle>& circles) {
 	for (auto circle_1 = circles.cbegin(); circle_1 != circles.cend(); ++circle_1) {
 		for (auto circle_2 = circle_1 + 1u; circle_2 != circles.cend(); ++circle_2) {
 
 			// tangents between two circles
 			auto pair_tangents = get_tangents(*circle_1, *circle_2);
 
-			// removing tangents which can not exist
-			filter_tangents(pair_tangents, circles);
 			tangents.insert(pair_tangents.cbegin(), pair_tangents.cend());
 		}
 	}
+}
 
-	// same with start and finish points and all other circles, considering points as circles
-	const Circle circle_a(a, 0.0);
-	const Circle circle_b(b, 0.0);
-	for (const auto& circle : circles) {
-		auto pair_tangents_a = get_tangents(circle_a, circle);
-		filter_tangents(pair_tangents_a, circles);
-
-		auto pair_tangents_b = get_tangents(circle, circle_b);
-		filter_tangents(pair_tangents_b, circles);
-
-		tangents.insert(pair_tangents_a.cbegin(), pair_tangents_a.cend());
-		tangents.insert(pair_tangents_b.cbegin(), pair_tangents_b.cend());
-	}
-
-	// same with both start and finish points
-	Tangents_t tangent_a_b = get_tangents(circle_a, circle_b);
-	filter_tangents(tangent_a_b, circles);
-	tangents.insert(tangent_a_b.cbegin(), tangent_a_b.cend());
-
-	// all points with binding to their own circles
-	const auto points_on_circles = get_points(tangents);
-
-	// finding all arcs
-	Arcs_t arcs;
-	arcs.reserve(tangents.size() * tangents.size());
+// finds all arcs
+void add_arcs(Arcs_t& arcs, const Points_on_circles_t& points_on_circles) {
 	for (const auto& [circle, points_on_circle] : points_on_circles) {
 		auto arcs_on_circle = get_arcs(points_on_circle, circle);
 		arcs.insert(arcs_on_circle.cbegin(), arcs_on_circle.cend());
 	}
+}
 
-	// removing arc which can not exist
-	filter_arcs(arcs, circles);
-
-	// adding points to graph
-	Graph_t graph;
-	graph.reserve(tangents.size() * 2u + 2u);
+// adds all nodes 
+void add_nodes_to_graph(Graph_t& graph, const Points_on_circles_t& points_on_circles) {
 	for (const auto& [_, points_on_circle] : points_on_circles) {
 		for (const auto& point : points_on_circle) {
 			if (graph.find(point) == graph.cend())
 				graph.insert(std::pair<Vertex_t, Vertices_t>(point, Vertices_t()));
 		}
 	}
+}
 
-	// connecting points with each other according to tangent/arc they belong to
-	for (auto& [vertex, neighbors] : graph) {
-		for (const auto& tangent : tangents) {
-			if (tangent.m_a == vertex)
-				neighbors.insert(std::pair<Vertex_t, double>(tangent.m_b, tangent.m_length));
-			if (tangent.m_b == vertex)
-				neighbors.insert(std::pair<Vertex_t, double>(tangent.m_a, tangent.m_length));
-		}
-		for (const auto& arc : arcs) {
-			if (arc.m_a == vertex)
-				neighbors.insert(std::pair<Vertex_t, double>(arc.m_b, arc.m_length));
-			if (arc.m_b == vertex)
-				neighbors.insert(std::pair<Vertex_t, double>(arc.m_a, arc.m_length));
+// unites lists of neighbors for each 'approximately' similar 
+// nodes such as Point(0.99999999999999967, 0.0) and Point(1.0, 0.0)
+void merge_neighbors_for_similar_nodes(Graph_t& graph) {
+	std::vector<std::pair<Vertex_t, Vertices_t>> graph_to_sort(graph.cbegin(), graph.cend());
+	
+	// sorting all nodes in graph - to make nodes 
+	// like Point(2.0, 0.0) and Point(1.999999999999996, 0.0) be next to each other
+	std::sort(
+		graph_to_sort.begin(),
+		graph_to_sort.end(),
+		[](
+			const std::pair<Vertex_t, Vertices_t>& vertex_and_neighbors_1, 
+			const std::pair<Vertex_t, Vertices_t>& vertex_and_neighbors_2
+			)-> bool {
+
+			// Cantor's pair - this is how points with two values (x and y) can be sorted
+			const double pair_1 =
+				(vertex_and_neighbors_1.first.x + vertex_and_neighbors_1.first.y) *
+				(vertex_and_neighbors_1.first.x + vertex_and_neighbors_1.first.y + 1.0) / 2.0 + 
+				 vertex_and_neighbors_1.first.y;
+			const double pair_2 =
+				(vertex_and_neighbors_2.first.x + vertex_and_neighbors_2.first.y) *
+				(vertex_and_neighbors_2.first.x + vertex_and_neighbors_2.first.y + 1.0) / 2.0 + 
+				 vertex_and_neighbors_2.first.y;
+
+			return pair_1 < pair_2;
+		});
+
+	// uniting and duplicating lists of neighbors for each 'approximately' similar node
+	for (auto point = graph_to_sort.begin(); point < graph_to_sort.end() - 1u; ++point) {
+		if (point->first == (point + 1u)->first) {
+			point->second.merge((point + 1u)->second);
+			(point + 1u)->second = point->second;
+
+			graph.at(point->first) = point->second;
+			graph.at((point + 1u)->first) = point->second;
 		}
 	}
+}
 
+// connects all nodes in graph according to tangents and arcs
+void connect_nodes_of_graph(Graph_t& graph, const Tangents_t& tangents, const Arcs_t& arcs) {
+	for (const auto& tangent : tangents) {
+		graph.at(tangent.m_a).insert(std::pair<Vertex_t, double>(tangent.m_b, tangent.m_length));
+		graph.at(tangent.m_b).insert(std::pair<Vertex_t, double>(tangent.m_a, tangent.m_length));
+	}
+	for (const auto& arc : arcs) {
+		graph.at(arc.m_a).insert(std::pair<Vertex_t, double>(arc.m_b, arc.m_length));
+		graph.at(arc.m_b).insert(std::pair<Vertex_t, double>(arc.m_a, arc.m_length));
+	}
+}
+
+// returns graph for this entire task
+Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
+	
+	// all circles with start and finish points as circles with zero radius
+	const auto circles_copy = [&]() {
+		auto local_copy = circles;
+		local_copy.emplace_back(a, 0.0);
+		local_copy.emplace_back(b, 0.0);
+		return local_copy;
+	}();
+		
+	// finding all tangents between circles and start/finish points
+	Tangents_t tangents;
+	tangents.reserve(4.0 * (circles_copy.size()) * (circles_copy.size() - 1u));
+	add_tangents(tangents, circles_copy);
+
+	// removing tangents which can not exist
+	filter_tangents_fast(tangents, circles_copy); // 357 ms
+
+	// all points with binding to their own circles
+	const auto points_on_circles = get_points_on_circles(tangents);
+
+	// finding all arcs
+	Arcs_t arcs;
+	arcs.reserve(tangents.size() * tangents.size());
+	add_arcs(arcs, points_on_circles);
+
+	// removing arc which can not exist
+	filter_arcs_fast(arcs, circles); // 105 ms
+
+	// adding points to graph
+	Graph_t graph;
+	graph.reserve(tangents.size() * 2u + 2u);
+	add_nodes_to_graph(graph, points_on_circles); // 68 ms
+	
+	// connecting points with each other according to tangent/arc they belong to
+	connect_nodes_of_graph(graph, tangents, arcs); // 291 ms	
+	
+	// uniting lists of neighbors for every pair of 'approximately' similar points
+	// (hash for 2.0 and for 1.99999999999999994 differs, but these points are 'approximately' same)
+	merge_neighbors_for_similar_nodes(graph); // 319 ms
+	
 	return graph;
 }
 
@@ -845,7 +1005,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
 	if (verbose)
 		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
-
+	const auto circles2 = circles;
 	circles.clear();
 
 
@@ -972,8 +1132,12 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(10, 10, 0.3564727762481197);
 	result_expected = 13.5171;
 
-	result_actual = algorithm(a7, b7, circles);
-
+	for (int i = 0; i < 10; ++i) {
+		result_actual = algorithm(a6, b6, circles);
+		Timer timer;
+		result_actual = algorithm(a7, b7, circles);
+		std::cout << "time = " << timer.elapsed() << '\n';
+	}
 	std::cout << "test  #7: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
 	if (verbose)
