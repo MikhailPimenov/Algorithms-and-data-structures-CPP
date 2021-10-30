@@ -643,8 +643,9 @@ get_interval(double value_to_find, const std::vector<Circle>& sorted_circles) {
 }
 
 
-void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& circles) {
-	
+
+Tangents_t filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& circles) {
+	Timer timer_entire;
 	Timer timer;
 	// 4 * (n + n * log(n))
 	const std::vector<Circle> left_all = [&]()->std::vector<Circle> {
@@ -657,7 +658,8 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 			}
 		);
 		return local_copy;
-	}(); 
+	}();
+
 	const std::vector<Circle> right_all = [&]()->std::vector<Circle> {
 		std::vector<Circle> local_copy(circles);
 		std::sort(
@@ -709,6 +711,7 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 			);
 		return local_copy;
 	}();
+	
 	// 2 * n + (2 * n * log(2 * n)) = 2n + 2n*(log(n)+1) ~ 2 * n * log(n)
 	const std::vector<double> y_all = [&]()->std::vector<double> {
 		std::vector<double> local_copy;
@@ -726,7 +729,7 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 		);
 		return local_copy;
 	}();
-
+	
 	
 	// 2n - 1 + (2n - 1) * n ~ 2 * (n ^ 2)
 	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> x_ranges;
@@ -769,8 +772,39 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 
 
 	std::cout << "filter_tangents_advanced(): preparation = \t" << timer.elapsed() << '\n';
+	//Timer get_ends_from_tangent;
+	//Timer get_interval_for_circles_covering_their_left_side;
+	//Timer check_collision_with_circles_covering_their_left_side;
+	//Timer get_interval_for_covering_left_end_circles;
+	//Timer check_collision_with_covering_left_end_circles;
+	//Timer get_covering_left_end_circles;
+	double time_get_ends_1{0.0};
+	double time_get_interval_1{ 0.0 };
+	double time_check_collision_1{ 0.0 };
+	double time_get_interval_2{ 0.0 };
+	double time_check_collision_2{ 0.0 };
+	double time_get_covering{ 0.0 };
+	double time_emplace{ 0.0 };
 
-	for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
+	Timer timer_cycle;
+	Timer timer_one_cycle;
+	std::vector<double> timers;
+	timers.reserve(tangents.size());
+	timer.reset();
+	int counter = 0;
+	Tangents_t filtered_tangents;
+	filtered_tangents.reserve(tangents.size());
+	double time_cycles{ 0.0 };
+	for (auto tangent = tangents.cbegin(); tangent != tangents.cend();++tangent) {
+		time_cycles += timer_one_cycle.elapsed();
+		timer_one_cycle.reset();
+		++counter;
+		
+		timer.reset();
+		
+		//timers.emplace_back(timer_one_cycle.elapsed());
+		//timer_one_cycle.reset();
+
 		const double left_end_of_tangent =
 			(tangent->m_a.x < tangent->m_b.x) ? 
 			tangent->m_a.x : 
@@ -783,9 +817,14 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 			(tangent->m_a.x > tangent->m_b.x) ?
 			tangent->m_a.x :
 			tangent->m_b.x; // if m_a.x and m_b.x are equal, what will be?
+		time_get_ends_1 += timer.elapsed();
+		timer.reset();
+
 
 		const auto start = get_interval(left_end_of_tangent, left_all).first;
 		const auto finish = get_interval(right_end_of_tangent, left_all).second;
+		time_get_interval_1 += timer.elapsed();
+		timer.reset();
 
 		//const std::vector<Circle> circles_covering_its_left_side(
 			//start,
@@ -797,23 +836,52 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 			//continue;
 		//}
 
+
 		if (there_is_collision(*tangent, circles, start, finish)) {
-			tangent = tangents.erase(tangent);
+			//tangent = tangents.erase(tangent);
 			continue;
 		}
+		time_check_collision_1 += timer.elapsed();
+		timer.reset();
 
 
 		const auto start1_finish1 = get_interval(left_end_of_tangent, x_all);
+		time_get_interval_2 += timer.elapsed();
+		timer.reset();
+
 
 		const Circles_t& circles_covering_left_end = x_ranges.at(start1_finish1);
+		time_get_covering += timer.elapsed();
+		timer.reset();
+
 		if (there_is_collision(*tangent, circles_covering_left_end)) {
-			tangent = tangents.erase(tangent);
+			//tangent = tangents.erase(tangent);
 			continue;
 		}
-
+		time_check_collision_2 += timer.elapsed();
+		timer.reset();
 		
-		++tangent;
+		//++tangent;
+		filtered_tangents.emplace(*tangent);
+		time_emplace += timer.elapsed();
+		timer.reset();
 	}
+
+	std::cout << "get_ends = \t\t\t\t\t\t\t" << time_get_ends_1 << '\n';
+	std::cout << "get_interval_for_left = \t\t\t\t\t" << time_get_interval_1 << '\n';
+	std::cout << "check_collisions_with_circles_covering_with_their_left_side = \t" << time_check_collision_1 << '\n';
+	std::cout << "get_interval_for_circles_covering_left_end = \t\t\t" << time_get_interval_2 << '\n';
+	std::cout << "get_circles_covering_left_end = \t\t\t\t" << time_get_covering << '\n';
+	std::cout << "check_collisions_with_circles_covering_left_end = \t\t" << time_check_collision_2 << '\n';
+	std::cout << "emplace = \t\t\t\t\t\t\t" << time_emplace << '\n';
+
+	std::cout << "cycle = \t\t\t\t\t" << timer_cycle.elapsed() << '\n';
+	std::cout << "cycle_one_cycles = \t\t\t\t" << time_cycles << '\n';
+
+	//std::cout << "counter = \t\t\t\t\t" << counter << '\n';
+	std::cout << "all_operations = \t\t\t\t" << timer_entire.elapsed() << '\n';
+
+	return filtered_tangents;
 }
 
 // returns true if arc can not exist because circle covers it (or its part)
@@ -1258,7 +1326,9 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	//filter_tangents_fast(tangents, circles_copy);
 	
 	//filter_tangents(tangents, circles); 
-	filter_tangents_advanced(tangents, circles);
+	//filter_tangents_advanced(tangents, circles);
+	for(int i = 0; i < 10; ++i)
+		const auto filtered_tangents = filter_tangents_advanced(tangents, circles);
 	std::cout << "filter_tangents() = \t\t\t" << filter_tangents_timer.elapsed() << '\n';
 	timer.reset();
 	
@@ -1270,6 +1340,7 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 
 	// finding all arcs
 	Arcs_t arcs;
+	//arcs.reserve(tangents.size() * tangents.size());
 	arcs.reserve(tangents.size() * tangents.size());
 	std::cout << "arcs.reserve() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
