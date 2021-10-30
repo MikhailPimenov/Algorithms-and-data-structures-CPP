@@ -538,6 +538,32 @@ bool there_is_collision(const Tangent& tangent, const std::vector<Circle>& circl
 	return false;
 }
 
+bool there_is_collision(
+	const Tangent& tangent, 
+	const std::vector<Circle>& circles, 
+	const std::vector<Circle>::const_iterator &cbegin, 
+	const std::vector<Circle>::const_iterator &cend
+) {
+	for (auto circle = cbegin; circle != cend; ++circle) {
+	//for (const auto& circle : circles) {
+		if (*circle != *tangent.m_circle_a && *circle != *tangent.m_circle_b) {
+			if (there_is_collision_between_tangent_and_circle(tangent, *circle))
+				return true;
+		}
+	}
+	return false;
+}
+
+bool there_is_collision(const Tangent& tangent, const Circles_t& circles) {
+	for (const auto& circle : circles) {
+		if (circle != *tangent.m_circle_a && circle != *tangent.m_circle_b) {
+			if (there_is_collision_between_tangent_and_circle(tangent, circle))
+				return true;
+		}
+	}
+	return false;
+}
+
 // removes all the tangents which can not exist
 void filter_tangents_fast(Tangents_t& tangents, const std::vector<Circle>& circles) {
 	Timer timer;
@@ -578,6 +604,44 @@ struct Pair_double_hash {
 		return instance(obj);
 	}
 };
+
+
+std::pair<double, double> get_interval(double value_to_find, const std::vector<double>& sorted_values) {
+	const auto right = std::upper_bound(
+		sorted_values.cbegin(),
+		sorted_values.cend(),
+		value_to_find,
+		[](double value_to_find, double value) {
+			return value > value_to_find || are_equal(value, value_to_find);
+		}
+	);
+	const auto left =
+		(right == sorted_values.cbegin()) ?
+		sorted_values.cbegin() :
+		right - 1u;
+
+	return std::make_pair(*left, *right);
+}
+
+std::pair<std::vector<Circle>::const_iterator, std::vector<Circle>::const_iterator> 
+get_interval(double value_to_find, const std::vector<Circle>& sorted_circles) {
+	const auto right = std::upper_bound(
+		sorted_circles.cbegin(),
+		sorted_circles.cend(),
+		value_to_find,
+		[](double value_to_find, const Circle& circle) {
+			return circle.ctr.x - circle.r > value_to_find || 
+				are_equal(circle.ctr.x - circle.r, value_to_find);
+		}
+	);
+	const auto left =
+		(right == sorted_circles.cbegin()) ?
+		sorted_circles.cbegin() :
+		right - 1u;
+
+	return std::make_pair(left, right);
+}
+
 
 void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& circles) {
 	
@@ -682,6 +746,7 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 				
 		}
 	}
+	x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*x_all.cbegin(), *x_all.cbegin()), Circles_t()));
 
 	// 2n - 1 + (2n - 1) * n ~ 2 * (n ^ 2)
 	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> y_ranges;
@@ -700,199 +765,55 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 				y_ranges.at(range).insert(circle);
 		}
 	}
+	y_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*y_all.cbegin(), *y_all.cbegin()), Circles_t()));
+
 
 	std::cout << "filter_tangents_advanced(): preparation = \t" << timer.elapsed() << '\n';
 
-
-	for (auto tangent = tangents.cbegin(); 
-		 tangent != tangents.cend();) {
-
-		const double left_x =
-			(tangent->m_a.x < tangent->m_b.x) ?
-			tangent->m_a.x :
+	for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
+		const double left_end_of_tangent =
+			(tangent->m_a.x < tangent->m_b.x) ? 
+			tangent->m_a.x : 
 			tangent->m_b.x;
-		const double right_x =
+		
+		
+		
+		
+		const double right_end_of_tangent =
 			(tangent->m_a.x > tangent->m_b.x) ?
 			tangent->m_a.x :
-			tangent->m_b.x;
-		// consider that m_a == m_b, what will happen?
+			tangent->m_b.x; // if m_a.x and m_b.x are equal, what will be?
 
-		const double up_y =
-			((tangent->m_a.y > tangent->m_b.y) ?
-				tangent->m_a.y :
-				tangent->m_b.y);
+		const auto start = get_interval(left_end_of_tangent, left_all).first;
+		const auto finish = get_interval(right_end_of_tangent, left_all).second;
 
-		const double down_y =
-			((tangent->m_a.y < tangent->m_b.y) ?
-				tangent->m_a.y :
-				tangent->m_b.y);
+		//const std::vector<Circle> circles_covering_its_left_side(
+			//start,
+			//finish
+		//);
+		
+		//if (there_is_collision(*tangent, circles_covering_its_left_side)) {
+			//tangent = tangents.erase(tangent);
+			//continue;
+		//}
 
-
-		const auto x_right_for_cover = std::upper_bound(
-			x_all.cbegin(),
-			x_all.cend(),
-			left_x
-		);
-		if (x_right_for_cover == x_all.cbegin() || x_right_for_cover == x_all.cend()) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-
-		const auto x_left_for_cover = x_right_for_cover - 1u;
-
-		//0 0.01 0.02 0.05 0.09 0.095
-		//0.08
-		//const auto x_right_for_cover = std::
-
-		auto covering_circle_x = x_ranges.at(std::make_pair(*x_left_for_cover, *x_right_for_cover));
-
-
-
-		const auto y_up_for_cover = std::upper_bound(
-			y_all.cbegin(),
-			y_all.cend(),
-			down_y
-		);
-		if (y_up_for_cover == y_all.cbegin() || y_up_for_cover == y_all.cend()) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-
-		const auto y_down_for_cover = y_up_for_cover - 1u;
-
-		//0 0.01 0.02 0.05 0.09 0.095
-		//0.08
-		//const auto x_right_for_cover = std::
-
-
-		auto covering_circle_y = y_ranges.at(std::make_pair(*y_down_for_cover, *y_up_for_cover));
-
-
-		covering_circle_x.merge(covering_circle_y);
-
-		if (covering_circle_y.size() > 1u) {
+		if (there_is_collision(*tangent, circles, start, finish)) {
 			tangent = tangents.erase(tangent);
 			continue;
 		}
 
 
+		const auto start1_finish1 = get_interval(left_end_of_tangent, x_all);
 
-		
-
-		
-		const auto left_boundary_left = std::lower_bound(
-			left_all.cbegin(),
-			left_all.cend(),
-			left_x,
-			[](const Circle& circle, double value)->bool {
-				//return are_equal(circle.ctr.x - circle.r, value);
-				return circle.ctr.x - circle.r < value;
-			}
-		);
-		const auto right_boundary_left = std::upper_bound(
-			left_all.cbegin(),
-			left_all.cend(),
-			right_x,
-			[](double value, const Circle& circle)->bool {
-				//return are_equal(circle.ctr.x - circle.r, value);
-				return circle.ctr.x - circle.r > value;
-			}
-		); 
-		const std::vector<Circle> left(left_boundary_left, right_boundary_left);
-
-		const auto left_boundary_right = std::lower_bound(
-			right_all.cbegin(),
-			right_all.cend(),
-			left_x,
-			[](const Circle& circle, double value)->bool {
-				//return are_equal(circle.ctr.x + circle.r, value);
-				return circle.ctr.x + circle.r < value;
-			}
-		);
-		const auto right_boundary_right = std::upper_bound(
-			right_all.cbegin(),
-			right_all.cend(),
-			right_x,
-			[](double value, const Circle& circle)->bool {
-				//return are_equal(circle.ctr.x + circle.r, value);
-				return circle.ctr.x + circle.r > value;
-			}
-		);
-		const std::vector<Circle> right(left_boundary_right, right_boundary_right);
-
-
-		
-
-
-		const auto left_boundary_up = std::lower_bound(
-			up_all.cbegin(),
-			up_all.cend(),
-			down_y,
-			[](const Circle& circle, double value)->bool {
-				//return are_equal(circle.ctr.y + circle.r, value);
-				return circle.ctr.y + circle.r < value;
-			}
-		);
-		const auto right_boundary_up = std::upper_bound(
-			up_all.cbegin(),
-			up_all.cend(),
-			up_y,
-			[](double value, const Circle& circle)->bool {
-				//return are_equal(circle.ctr.y + circle.r, value);
-				return circle.ctr.y + circle.r > value;
-			}
-		);
-		const std::vector<Circle> up(left_boundary_up, right_boundary_up);
-
-		const auto left_boundary_down = std::lower_bound(
-			down_all.cbegin(),
-			down_all.cend(),
-			down_y,
-			[](const Circle& circle, double value)->bool {
-				//return are_equal(circle.ctr.y - circle.r, value);
-				return circle.ctr.y - circle.r < value;
-			}
-		);
-		const auto right_boundary_down = std::upper_bound(
-			down_all.cbegin(),
-			down_all.cend(),
-			up_y,
-			[](double value, const Circle& circle)->bool {
-				//return are_equal(circle.ctr.y - circle.r, value);
-				return circle.ctr.y - circle.r > value;
-			}
-		);
-		const std::vector<Circle> down(left_boundary_down, right_boundary_down);
-		
-		
-
-		if (there_is_collision(*tangent, left)) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-		if (there_is_collision(*tangent, right)) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-		if (there_is_collision(*tangent, up)) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-		if (there_is_collision(*tangent, down)) {
+		const Circles_t& circles_covering_left_end = x_ranges.at(start1_finish1);
+		if (there_is_collision(*tangent, circles_covering_left_end)) {
 			tangent = tangents.erase(tangent);
 			continue;
 		}
 
-		
-
-		
-		
 		
 		++tangent;
-
 	}
-
-	
 }
 
 // returns true if arc can not exist because circle covers it (or its part)
@@ -1340,7 +1261,7 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	filter_tangents_advanced(tangents, circles);
 	std::cout << "filter_tangents() = \t\t\t" << filter_tangents_timer.elapsed() << '\n';
 	timer.reset();
-
+	
 	// all points with binding to their own circles
 	const auto points_on_circles = get_points_on_circles(tangents);
 	std::cout << "get_points_on_circles() = \t\t" << timer.elapsed() << '\n';
@@ -1363,7 +1284,7 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	std::cout << "filter_arcs() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
-
+	
 	// adding points to graph
 	Graph_t graph;
 	graph.reserve(tangents.size() * 2u + 2u);
@@ -1387,7 +1308,7 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	std::cout << "merge_neighbors_for_similar_nodes() = \t" << timer.elapsed() << '\n';
 	timer.reset();
 
-
+	
 	return graph;
 }
 
@@ -2300,8 +2221,8 @@ int main()
     test_get_graph(get_graph);
 */
 
-    //test_tiptoe_through_the_circles(tiptoe_through_the_circles);
-	test_filter_tangents(filter_tangents_advanced);
+    test_tiptoe_through_the_circles(tiptoe_through_the_circles);
+	//test_filter_tangents(filter_tangents_advanced);
 	std::cout << "threads: " << std::thread::hardware_concurrency() << '\n';
 
 	/*const std::vector<Circle> circles({
