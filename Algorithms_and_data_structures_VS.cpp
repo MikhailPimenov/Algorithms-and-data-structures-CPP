@@ -43,6 +43,24 @@
 #include <unordered_map>
 #include <unordered_set>
 
+
+double g_copy{ 0.0 };
+double g_tangents_reserve{ 0.0 };
+double g_add_tangents{ 0.0 };
+double g_filter_tangents{ 0.0 };
+double g_get_points_on_circles{ 0.0 };
+double g_arcs_size{ 0.0 };
+double g_arc_reserve{ 0.0 };
+double g_add_arcs{ 0.0 };
+double g_filter_arcs{ 0.0 };
+double g_graph_reserve{ 0.0 };
+double g_add_nodes_to_graph{ 0.0 };
+double g_connect_nodes_of_graph{ 0.0 };
+double g_merge_neighbors_for_similar_nodes{ 0.0 };
+double g_graph{ 0.0 };
+double g_dijkstra{ 0.0 };
+double g_time{ 0.0 };
+
 /*
 The shortest path consists of tangents and arcs. 
 The idea is to build a graph, and then to find the shortest path
@@ -1000,11 +1018,34 @@ void add_tangents(Tangents_t &tangents, const std::vector<Circle>& circles) {
 	}
 }
 
+
+// returns all possible arcs on this circle
+void add_arcs_for_circle_fast(Arcs_t &arcs, const Points_t& points, const Circle& circle) {
+	//Arcs_t arcs;
+	//arcs.reserve(points.size() * (points.size() - 1u));
+
+	for (const auto& point_a : points) {
+		for (const auto& point_b : points) {
+			if (point_a != point_b) {
+				arcs.emplace(point_a, point_b, circle);
+				arcs.emplace(point_b, point_a, circle);
+			}
+		}
+	}
+}
+
 // finds all arcs
 void add_arcs(Arcs_t& arcs, const Points_on_circles_t& points_on_circles) {
 	for (const auto& [circle, points_on_circle] : points_on_circles) {
 		auto arcs_on_circle = get_arcs(points_on_circle, circle);
 		arcs.insert(arcs_on_circle.cbegin(), arcs_on_circle.cend());
+	}
+}
+
+// finds all arcs
+void add_arcs_fast(Arcs_t& arcs, const Points_on_circles_t& points_on_circles) {
+	for (const auto& [circle, points_on_circle] : points_on_circles) {
+		add_arcs_for_circle_fast(arcs, points_on_circle, circle);
 	}
 }
 
@@ -1080,16 +1121,19 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 		local_copy.emplace_back(b, 0.0);
 		return local_copy;
 	}();
+	g_copy += timer.elapsed();
 	std::cout << "copy = \t\t\t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
 	// finding all tangents between circles and start/finish points
 	Tangents_t tangents;
 	tangents.reserve(4.0 * (circles_copy.size()) * (circles_copy.size() - 1u));
+	g_tangents_reserve += timer.elapsed();
 	std::cout << "tangents.reserve() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
 	add_tangents(tangents, circles_copy);
+	g_add_tangents += timer.elapsed();
 	std::cout << "add_tangents() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
@@ -1172,32 +1216,42 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	//filter_tangents_fast(tangents, circles_copy);
 	
 	//filter_tangents(tangents, circles); 
-	//filter_tangents_advanced(tangents, circles);
-	for(int i = 0; i < 1; ++i)
-		filter_tangents_advanced(tangents, circles);
+	
+	filter_tangents_advanced(tangents, circles);
+	g_filter_tangents += timer.elapsed();
 	std::cout << "filter_tangents() = \t\t\t" << filter_tangents_timer.elapsed() << '\n';
 	timer.reset();
 	
 	// all points with binding to their own circles
 	const auto points_on_circles = get_points_on_circles(tangents);
+	g_get_points_on_circles += timer.elapsed();
 	std::cout << "get_points_on_circles() = \t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
+	std::size_t arcs_size{ 0u };
+	for (const auto& [_, points] : points_on_circles) {
+		arcs_size += points.size() * (points.size() - 1);
+	}
+	g_arcs_size += timer.elapsed();
+	std::cout << "arcs_size = \t\t\t\t" << timer.elapsed() << '\n';
 
 	// finding all arcs
 	Arcs_t arcs;
+	arcs.reserve(arcs_size);
 	//arcs.reserve(tangents.size() * tangents.size());
-	arcs.reserve(tangents.size() * tangents.size());
+	g_arc_reserve += timer.elapsed();
 	std::cout << "arcs.reserve() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
-	add_arcs(arcs, points_on_circles);
+	add_arcs_fast(arcs, points_on_circles);
+	g_add_arcs += timer.elapsed();
 	std::cout << "add_arcs() = \t\t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
 
 	// removing arc which can not exist
 	filter_arcs_fast(arcs, circles); // 105 ms
+	g_filter_arcs += timer.elapsed();
 	std::cout << "filter_arcs() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
@@ -1205,16 +1259,19 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	// adding points to graph
 	Graph_t graph;
 	graph.reserve(tangents.size() * 2u + 2u);
+	g_graph_reserve += timer.elapsed();
 	std::cout << "graph.reserve() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
 	add_nodes_to_graph(graph, points_on_circles); // 68 ms
+	g_add_nodes_to_graph += timer.elapsed();
 	std::cout << "add_nodes_to_graph() = \t\t\t" << timer.elapsed() << '\n';
 	timer.reset();
-
+ 
 
 	// connecting points with each other according to tangent/arc they belong to
 	connect_nodes_of_graph(graph, tangents, arcs); // 291 ms	
+	g_connect_nodes_of_graph += timer.elapsed();
 	std::cout << "connect_nodes_of_graph() = \t\t" << timer.elapsed() << '\n';
 	timer.reset();
 
@@ -1222,6 +1279,7 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 	// uniting lists of neighbors for every pair of 'approximately' similar points
 	// (hash for 2.0 and for 1.99999999999999994 differs, but these points are 'approximately' same)
 	merge_neighbors_for_similar_nodes(graph); // 319 ms
+	g_merge_neighbors_for_similar_nodes += timer.elapsed();
 	std::cout << "merge_neighbors_for_similar_nodes() = \t" << timer.elapsed() << '\n';
 	timer.reset();
 
@@ -1232,9 +1290,11 @@ Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& ci
 double tiptoe_through_the_circles(Point a, Point b, const std::vector<Circle>& circles) {
 	Timer timer;
 	const auto graph = get_graph(a, b, circles);
+	g_graph += timer.elapsed();
 	std::cout << "graph = " << timer.elapsed() << '\n';
 	timer.reset();
 	const double result = dijkstra_tiptoe(graph, a, b);
+	g_dijkstra += timer.elapsed();
 	std::cout << "dijkstra = " << timer.elapsed() << '\n';
 	return result;
 }
@@ -1242,7 +1302,8 @@ double tiptoe_through_the_circles(Point a, Point b, const std::vector<Circle>& c
 void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std::vector<Circle>&)) {
 	std::cout << "test_tiptoe_through_the_circles:\n";
 	std::cout << std::setprecision(16);
-	bool verbose = true;
+	bool verbose = false;
+	Timer timer;
 
 	std::vector<Circle> circles;
 	double result_expected = 0.0;
@@ -1257,7 +1318,9 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(3.5, -1.7, 1.2);
 	result_expected = 9.11821650244;
 
+	timer.reset();
 	//result_actual = algorithm(a1, b1, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
 
 	std::cout << "test  #1: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
@@ -1274,7 +1337,9 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(-7.0, 0.0, 1.0);
 	result_expected = 19.0575347577;
 
+	timer.reset();
 	//result_actual = algorithm(a2, b2, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
 
 	std::cout << "test  #2: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
@@ -1287,7 +1352,9 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	Point b3(0.0, 4.0);
 	result_expected = 5.0;
 
+	timer.reset();
 	//result_actual = algorithm(a3, b3, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
 
 	std::cout << "test  #3: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
@@ -1305,7 +1372,9 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(0.0, -4.0, 3.0);
 	result_expected = -1.0;
 
+	timer.reset();
 	//result_actual = algorithm(a4, b4, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
 
 	std::cout << "test  #4: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
@@ -1323,7 +1392,9 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(7, 0, 1);
 	result_expected = 19.0575347577;
 
+	timer.reset();
 	//result_actual = algorithm(a5, b5, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
 
 	std::cout << "test  #5: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
@@ -1376,7 +1447,9 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(-0.7387743960134685, -4.246743435505778, 0.6615151680773124);
 	result_expected = 11.9228;
 
+	timer.reset();
 	//result_actual = algorithm(a6, b6, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
 
 	std::cout << "test  #6: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
@@ -1385,7 +1458,3508 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	const auto circles2 = circles;
 	circles.clear();
 
-	
+
+	Point a101(-2.000298425089568, 3.749468164518476);
+	Point b101(3.086806660052389, -0.3613790776580572);
+	{
+		circles.emplace_back(-4.312177246902138, -1.825995144899935, 1.537304233969189);
+		circles.emplace_back(4.090373425278813, -3.607347321230918, 0.9538899711100384);
+		circles.emplace_back(-4.098228246439248, 4.120374575722963, 1.125000807014294);
+		circles.emplace_back(-2.209169554989785, -0.7002085656858981, 0.2084384063025936);
+		circles.emplace_back(-4.001088032964617, 1.893475188408047, 1.399483151757158);
+		circles.emplace_back(-3.268968423362821, 0.7412259723059833, 0.432029886986129);
+		circles.emplace_back(-3.054809097666293, -2.079985204618424, 0.8302456527249887);
+		circles.emplace_back(4.658766083884984, 1.402585541363806, 0.0703870586818084);
+		circles.emplace_back(4.372936950530857, -3.302281235810369, 0.9999477392295375);
+		circles.emplace_back(-3.914669880177826, -2.945075233001262, 0.5932513790903613);
+		circles.emplace_back(-1.791188039351255, 1.602634110022336, 0.9437262480380013);
+		circles.emplace_back(0.9105801326222718, -0.4681416437961161, 0.605236313282512);
+		circles.emplace_back(2.324651998933405, -1.960121297743171, 0.918448581942357);
+		circles.emplace_back(-2.734545466955751, 1.599212891887873, 0.8008913443190977);
+		circles.emplace_back(-2.588120114523917, 1.445159513968974, 1.120827562664635);
+		circles.emplace_back(4.102725342381746, -3.953214439097792, 1.090417228988372);
+		circles.emplace_back(3.463766851928085, 2.46860288316384, 0.8192173140356317);
+		circles.emplace_back(-1.671539710368961, 1.421643409412354, 0.7879026158479974);
+		circles.emplace_back(-4.972835585940629, -4.284591495525092, 1.008245448884554);
+		circles.emplace_back(-3.752855423372239, -1.244009530637413, 1.249069330259226);
+		circles.emplace_back(-3.493578697089106, -4.570442379917949, 0.6757102705771103);
+		circles.emplace_back(4.542630279902369, -0.8300261502154171, 1.257818318600766);
+		circles.emplace_back(0.01704404829069972, 0.237274628598243, 1.12488263763953);
+		circles.emplace_back(0.6850501080043614, -4.899106363300234, 1.077860431349836);
+		circles.emplace_back(-1.654746441636235, -1.733839919324964, 1.160000577406026);
+		circles.emplace_back(-4.70944901695475, 1.875125195365399, 1.194895912217907);
+		circles.emplace_back(4.221933789085597, 2.373881780076772, 1.255830672127195);
+		circles.emplace_back(-1.683828334789723, -4.852343781385571, 0.7636736480286345);
+		circles.emplace_back(-1.88443765277043, 1.607029458973557, 1.031193678476848);
+		circles.emplace_back(-4.203592611011118, -2.86351538496092, 1.530315921525471);
+		circles.emplace_back(3.838556620758027, -1.883792753797024, 0.6688127788947895);
+		circles.emplace_back(2.870973229873925, 4.325217080768198, 0.7110365967964754);
+		circles.emplace_back(-1.804937219712883, -2.672343102749437, 0.9072413007030263);
+		circles.emplace_back(0.8649966702796519, -4.852948051411659, 1.361310354503803);
+		circles.emplace_back(1.425558745395392, 1.964673504699022, 1.312462676432915);
+		circles.emplace_back(-0.08666141657158732, 1.84692365815863, 1.352167781605385);
+		circles.emplace_back(3.074735959526151, -3.726205842103809, 0.7545288563007488);
+		circles.emplace_back(-3.126031432766467, 4.291208770591766, 0.8058143212692812);
+		circles.emplace_back(-0.7387743960134685, -4.246743435505778, 0.6615151680773124);
+	}
+	result_expected = 11.92280589779663;
+
+	timer.reset();
+	result_actual = algorithm(a101, b101, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #101: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a102(-3.407654467504472, 3.147248836234212);
+	Point b102(2.705999904777855, 3.699559176340699);
+	{
+		circles.emplace_back(-1.30285874241963, 0.8287367434240878, 0.530179562070407);
+		circles.emplace_back(0.2471824758686125, 0.7799994270317256, 0.6663304635090753);
+		circles.emplace_back(-1.101479020435363, -4.487210686784238, 1.410582280461676);
+		circles.emplace_back(3.88571459101513, -3.412391173187643, 0.6502192210173234);
+		circles.emplace_back(4.726873098406941, -1.342303913552314, 1.657216931018047);
+		circles.emplace_back(-1.269799352157861, -3.634526326786727, 0.973153028753586);
+		circles.emplace_back(0.4688428458757699, -1.447940340731293, 1.362857049121521);
+		circles.emplace_back(-4.142232874874026, 4.053193016443402, 1.090474483394064);
+		circles.emplace_back(-0.665865947958082, -0.5710750375874341, 1.393810525978915);
+		circles.emplace_back(-0.3010314446873963, 3.41557213338092, 0.6971190973417833);
+		circles.emplace_back(0.7474921573884785, -0.1814590045250952, 0.866015613800846);
+		circles.emplace_back(4.864786283578724, 3.911350185517222, 0.314354850933887);
+		circles.emplace_back(1.462721249554306, -3.371791888494045, 1.037379816430621);
+		circles.emplace_back(1.335364214610308, -4.874243072699755, 1.229946907353587);
+		circles.emplace_back(-4.885504718404263, -0.3796107158996165, 0.8128225376596674);
+		circles.emplace_back(0.8149511343799531, 2.465207225177437, 1.655936161824502);
+		circles.emplace_back(1.745450051967055, -4.240099035669118, 0.4329816699726507);
+		circles.emplace_back(-4.588022690732032, -3.351922880392522, 1.110670110140927);
+		circles.emplace_back(-3.348182335030288, 0.3222733712755144, 1.126149553409777);
+		circles.emplace_back(3.6525839404203, -3.75478619011119, 0.3934334217337891);
+		circles.emplace_back(1.620937928091735, -3.810074597131461, 1.28613714587409);
+		circles.emplace_back(-4.632382008712739, -2.361299640033394, 1.01725264058914);
+		circles.emplace_back(1.363912706729025, -0.242021472658962, 1.483084296458401);
+		circles.emplace_back(1.039441938046366, 1.396577029954642, 1.320589729840867);
+		circles.emplace_back(0.9662505495361984, 2.610473644454032, 0.9059697396354749);
+		circles.emplace_back(-0.398722521495074, -3.776384780649096, 1.646404349780641);
+		circles.emplace_back(-2.431198118720204, 1.864345411304384, 1.154134194389917);
+		circles.emplace_back(0.8307247818447649, 4.856850083451718, 1.160799118387513);
+		circles.emplace_back(0.3084717760793865, 3.935077183414251, 0.9556073350133374);
+		circles.emplace_back(-0.7161020743660629, -3.431405855808407, 0.9973933143308386);
+		circles.emplace_back(1.377752122934908, -1.147998997475952, 0.9697838012361898);
+		circles.emplace_back(3.029059844557196, -3.059125759173185, 0.9414152079029008);
+		circles.emplace_back(-3.500768181402236, 1.475147877354175, 1.136812465195544);
+		circles.emplace_back(0.7417685096152127, 4.147131664212793, 1.287765949568711);
+		circles.emplace_back(2.605612331535667, 2.726441326085478, 0.4900807911762967);
+		circles.emplace_back(-4.764735193457454, -0.6831309315748513, 0.5852376333205029);
+		circles.emplace_back(3.543099730741233, -0.7590041006915271, 0.9550120615633204);
+		circles.emplace_back(-2.269698667805642, -3.257478496525437, 1.286685339524411);
+	}
+	result_expected = 8.322402159494233;
+
+	timer.reset();
+	result_actual = algorithm(a102, b102, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #102: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a103(-3.997427604626864, -1.515199078246951);
+	Point b103(3.198281688150018, -3.065876862034202);
+	{
+		circles.emplace_back(3.557604493107647, 3.867830077651888, 1.030572976008989);
+		circles.emplace_back(0.3106679976917803, 1.224292393308133, 1.620719462144188);
+		circles.emplace_back(3.365572250913829, -1.614064283203334, 0.8567804944934323);
+		circles.emplace_back(0.9754285705275834, 2.762684689369053, 1.323656560271047);
+		circles.emplace_back(-2.325451376382262, -0.7308800308965147, 1.229702988662757);
+		circles.emplace_back(4.640441599767655, 2.783511255402118, 1.209928478603251);
+		circles.emplace_back(-4.860883622895926, 4.509994906838983, 0.8191822316264733);
+		circles.emplace_back(2.104613536503166, -3.114207384642214, 0.6794940257677808);
+		circles.emplace_back(1.453441588673741, 1.047918784897774, 1.498832579585724);
+		circles.emplace_back(4.889070063363761, 0.7866096054203808, 0.8136321776779368);
+		circles.emplace_back(0.4971474525518715, 0.1595791964791715, 0.9921046027680859);
+		circles.emplace_back(3.100865294691175, 1.710938645992428, 1.554040239774622);
+		circles.emplace_back(2.177390793804079, 3.555218770634383, 0.5587449659360573);
+		circles.emplace_back(0.9745319443754852, 4.87836503656581, 0.584624522854574);
+		circles.emplace_back(-2.51545489532873, 2.131190632935613, 0.7320754967397078);
+		circles.emplace_back(-2.91006131330505, -1.824561392422765, 0.8878201520303264);
+		circles.emplace_back(-0.0245307176373899, -0.06309976102784276, 1.473306463914923);
+		circles.emplace_back(-3.294679143000394, -2.33975627226755, 0.5851729606511071);
+		circles.emplace_back(2.127076659817249, -3.471106796059757, 1.039518678723834);
+		circles.emplace_back(-0.808675664011389, 2.676039135549217, 1.477393430122174);
+		circles.emplace_back(-1.577002701815218, 0.1705852220766246, 0.7247626618249341);
+		circles.emplace_back(1.891746211331338, -1.293708186130971, 0.9340535740600898);
+		circles.emplace_back(2.329095259774476, -4.66777608031407, 1.306965305260382);
+		circles.emplace_back(-0.07975043961778283, 0.9276478760875762, 1.07899610272143);
+		circles.emplace_back(2.575321330223233, -4.96448376448825, 1.348764146747999);
+		circles.emplace_back(3.179673447739333, 0.460352182853967, 0.7118611411424354);
+		circles.emplace_back(4.141850408632308, -4.479051327798516, 1.245506560965441);
+		circles.emplace_back(1.011652981396765, -2.672652842011303, 1.136409211927093);
+		circles.emplace_back(-0.203328465577215, 1.243171512614936, 1.175955860014073);
+		circles.emplace_back(-2.300232730340213, -3.929088155273348, 0.7782384827500208);
+		circles.emplace_back(-1.774262094404548, -4.467276011127979, 1.232746140169911);
+		circles.emplace_back(4.765123135875911, 1.400947116781026, 1.102941637975164);
+		circles.emplace_back(-2.487805287819356, -1.241520328912884, 1.072573971538804);
+		circles.emplace_back(-1.388290675822645, -1.663666644599289, 0.8356419522548094);
+		circles.emplace_back(-4.934534800704569, 1.168844036292285, 0.5481304534478113);
+		circles.emplace_back(-1.331368770916015, -1.749335105996579, 0.5924912515329197);
+		circles.emplace_back(-3.201877891551703, 3.711077345069498, 0.4332969914888963);
+	}
+	result_expected = 15.30354281541973;
+
+	timer.reset();
+	result_actual = algorithm(a103, b103, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #103: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a104(-2.709975998383015, -2.927324889227748);
+	Point b104(3.553547830786556, 0.887513155117631);
+	{
+		circles.emplace_back(-2.950063014868647, 1.884566603694111, 0.7483262516791001);
+		circles.emplace_back(4.066753948573023, 4.994499206077307, 0.7857669603778049);
+		circles.emplace_back(-3.496747396420687, -3.7948301830329, 1.028303389227949);
+		circles.emplace_back(4.439268202986568, -0.881743838544935, 0.8674092678586021);
+		circles.emplace_back(-0.6081845401786268, -0.09549257578328252, 1.189688349771313);
+		circles.emplace_back(0.4560813377611339, -2.976281202863902, 1.259551885467954);
+		circles.emplace_back(1.828885574359447, 1.633974330034107, 1.318896803050302);
+		circles.emplace_back(4.642659353557974, 1.222652427386492, 0.4448513247771188);
+		circles.emplace_back(-0.8169213798828423, 2.31358302058652, 0.7574518236564471);
+		circles.emplace_back(-2.282275080215186, -4.900783228222281, 1.229359040758572);
+		circles.emplace_back(-0.754333829972893, 4.80168596142903, 1.937195614934899);
+		circles.emplace_back(-4.154334843624383, -2.252448096405715, 0.8445095428498461);
+		circles.emplace_back(-3.59642370371148, 2.991978952195495, 0.8343890750547871);
+		circles.emplace_back(3.980647881980985, -3.499987141694874, 1.034540772461332);
+		circles.emplace_back(-0.8793349168263376, -0.8813574467785656, 0.6480490271700545);
+		circles.emplace_back(-3.034271274227649, 4.742475536186248, 1.672473843325861);
+		circles.emplace_back(-3.906930543016642, 0.3742258599959314, 0.7806028403108939);
+		circles.emplace_back(-1.410101933870465, 3.506097311619669, 0.7869696190813555);
+		circles.emplace_back(0.8640920440666378, -3.164510957431048, 0.7770069469930604);
+		circles.emplace_back(-1.008218701463193, -3.919875978026539, 0.8524389942875131);
+		circles.emplace_back(-3.090661989990622, 3.19630021462217, 1.027961988397874);
+		circles.emplace_back(-4.701415447052568, 0.9079258213751018, 1.132606390188448);
+		circles.emplace_back(-0.6268407520838082, 3.569510628003627, 1.152721118484624);
+		circles.emplace_back(-2.876672341953963, 1.313453612383455, 1.536306867352687);
+		circles.emplace_back(-4.553983679506928, 4.501471596304327, 1.094521731347777);
+		circles.emplace_back(-2.645026759710163, 2.345773342531174, 0.2747199862031266);
+		circles.emplace_back(3.826906129252166, -4.078291624318808, 1.047551223752089);
+		circles.emplace_back(0.6289238599129021, -2.321385687682778, 1.254851599200629);
+		circles.emplace_back(0.6083335331641138, -1.947785706724972, 0.4066078685456886);
+		circles.emplace_back(-4.544567649718374, -2.635457545984536, 1.740445029432885);
+		circles.emplace_back(3.765714119654149, -2.037564206402749, 1.985838226159103);
+		circles.emplace_back(-1.765085987281054, -4.417275080922991, 0.4932114630704745);
+		circles.emplace_back(3.494860471691936, 3.023366371635348, 1.186214180127718);
+		circles.emplace_back(2.62451613554731, 2.284094567876309, 1.154218422877602);
+		circles.emplace_back(1.793548024725169, 4.432136111427099, 1.179498620075174);
+		circles.emplace_back(4.575769056100398, -1.053683294449002, 0.589142377465032);
+	}
+	result_expected = 7.334158457725674;
+
+	timer.reset();
+	result_actual = algorithm(a104, b104, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #104: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a105(-3.635850071441382, -1.707838160917163);
+	Point b105(3.225729187484831, -3.731068959459662);
+	{
+		circles.emplace_back(-2.172349265310913, -4.312638265546411, 1.62847022137139);
+		circles.emplace_back(-3.251324312295765, 3.024977508466691, 1.006659239414148);
+		circles.emplace_back(3.637937649618834, 4.060053557623178, 0.8732667149277403);
+		circles.emplace_back(4.811804678756744, 4.428744667675346, 0.4516330526908859);
+		circles.emplace_back(4.416278486605734, 1.352452842984349, 0.714944051974453);
+		circles.emplace_back(-1.22567999875173, 2.559542327653617, 1.142633220250718);
+		circles.emplace_back(-2.177871100138873, 0.7937727472744882, 1.045165789104067);
+		circles.emplace_back(3.344518186058849, 3.993602136615664, 0.4264995498815551);
+		circles.emplace_back(0.921063965652138, -0.5790386837907135, 1.156766482698731);
+		circles.emplace_back(0.1134811411611736, 0.4602193762548268, 0.7278252524556592);
+		circles.emplace_back(4.993396101053804, 2.318652442190796, 0.866486543812789);
+		circles.emplace_back(2.595831828657538, 0.3986851195804775, 1.002486866037361);
+		circles.emplace_back(3.329654696863145, 0.2089616400189698, 1.085207979683764);
+		circles.emplace_back(0.2665597503073514, -4.376659172121435, 1.248254531226121);
+		circles.emplace_back(-4.269504493568093, -2.887603340204805, 0.8081363016972318);
+		circles.emplace_back(-3.727511854376644, 2.229292679112405, 0.8958557239500805);
+		circles.emplace_back(1.403461408335716, 1.856387832667679, 0.899793473794125);
+		circles.emplace_back(-4.312943706754595, -2.758783565368503, 1.210711433016695);
+		circles.emplace_back(-3.788679798599333, -4.44476853357628, 0.7298135299934074);
+		circles.emplace_back(2.303906555753201, 0.1294856634922326, 1.049753972818144);
+		circles.emplace_back(1.065239182207733, -0.9015985322184861, 1.010105170565657);
+		circles.emplace_back(3.794587932061404, -0.0316125969402492, 1.232426405441947);
+		circles.emplace_back(-2.560433770995587, 0.03433564445003867, 1.590572742163204);
+		circles.emplace_back(4.362058562692255, -4.262583756353706, 0.8871584382141008);
+		circles.emplace_back(2.560200097505003, -2.513917081523687, 0.9597599253756924);
+		circles.emplace_back(-1.18431092472747, 1.874940593261272, 1.037790907477029);
+		circles.emplace_back(-3.289215608965605, -0.5597211443819106, 1.03949162249919);
+		circles.emplace_back(1.100471892859787, 0.7013138406910002, 0.8913894849130883);
+		circles.emplace_back(-2.562659548129886, 1.166707787197083, 0.9890011354116722);
+		circles.emplace_back(1.123671128880233, -0.3434864873997867, 1.014716182765551);
+		circles.emplace_back(-2.424579623620957, -4.67492381343618, 0.7381832631072029);
+		circles.emplace_back(4.844337666872889, 1.852975010406226, 0.9774605584098025);
+		circles.emplace_back(-3.246333498973399, -0.440637010615319, 0.8315434388117864);
+	}
+	result_expected = 7.153651710189512;
+
+	timer.reset();
+	result_actual = algorithm(a105, b105, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #105: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a106(-3.806075710337609, 1.89314285106957);
+	Point b106(2.823465475346893, 0.6947441343218088);
+	{
+		circles.emplace_back(-1.487007515970618, -3.636514747049659, 1.378336590179242);
+		circles.emplace_back(4.604606928769499, -0.9670934011228383, 1.337590606580488);
+		circles.emplace_back(-0.6413868186064065, -3.263172011356801, 0.6536694864975288);
+		circles.emplace_back(4.08762063132599, -0.6203083717264235, 1.570809294632636);
+		circles.emplace_back(-4.718081376049668, 0.8639877312816679, 1.277732460410334);
+		circles.emplace_back(1.611659659538418, 0.6839933129958808, 1.02595785993617);
+		circles.emplace_back(-3.429730639327317, -4.764917611610144, 1.293171008047648);
+		circles.emplace_back(-1.789634290616959, 4.580585265066475, 0.4211253763874993);
+		circles.emplace_back(-1.278693641070276, 1.365974305663258, 0.8646221168572082);
+		circles.emplace_back(2.421991492155939, -3.54448574827984, 0.562016074056737);
+		circles.emplace_back(-3.170185287017375, -3.745377499144524, 0.9593169114785268);
+		circles.emplace_back(4.690455116797239, 3.755388220306486, 1.017115278518759);
+		circles.emplace_back(-1.716391651425511, -3.896268715616316, 0.8916572986403479);
+		circles.emplace_back(-2.140160703565925, 4.71750172553584, 0.7185603062389418);
+		circles.emplace_back(-1.898068182636052, 3.668581985402852, 1.433890634519048);
+		circles.emplace_back(-3.679107513744384, -2.736895855050534, 0.5346276107477024);
+		circles.emplace_back(1.118140399921685, 4.287933481391519, 0.2652485858416185);
+		circles.emplace_back(-0.9775195480324328, -4.431587008293718, 1.13941081261728);
+		circles.emplace_back(3.881567774806172, -4.873110812623054, 1.042913610371761);
+		circles.emplace_back(-4.791327000129968, -0.8185662771575153, 1.06661907818634);
+		circles.emplace_back(3.399634819943458, -2.502565255854279, 0.8702758067985996);
+		circles.emplace_back(-3.652468065265566, -0.05714984377846122, 0.8956625730032101);
+		circles.emplace_back(1.684219429735094, -4.26147933350876, 0.4190042947186157);
+		circles.emplace_back(0.05791309056803584, 2.848477449733764, 0.8149268253939226);
+		circles.emplace_back(2.254610501695424, -2.526281292084605, 1.782579440600239);
+		circles.emplace_back(-0.7322466210462153, 4.369078690651804, 1.350699957297183);
+		circles.emplace_back(-1.059887388255447, -3.286094118375331, 0.6479401203570887);
+		circles.emplace_back(-1.082781322766095, 4.063333340454847, 1.137783875060268);
+		circles.emplace_back(3.888888482470065, -3.910718022380024, 0.7647841801634058);
+		circles.emplace_back(2.880052400287241, -0.8016869961284101, 0.8688743811333551);
+		circles.emplace_back(2.583332213107497, 2.856716669630259, 1.456345337699167);
+		circles.emplace_back(-0.3836916503496468, -1.052711259108037, 1.369756105099805);
+		circles.emplace_back(0.7532451837323606, -2.941087109502405, 1.418256589979864);
+		circles.emplace_back(-0.544276253785938, 2.926542225759476, 1.206182789686136);
+		circles.emplace_back(-3.931496397126466, -1.565212875138968, 1.194239807245322);
+		circles.emplace_back(2.41542198928073, -4.388786798808724, 0.4602720604976639);
+	}
+	result_expected = 7.627044361490151;
+
+	timer.reset();
+	result_actual = algorithm(a106, b106, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #106: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a107(-3.994156218599528, 3.651317762210965);
+	Point b107(2.656247851904482, -0.3339756336063147);
+	{
+		circles.emplace_back(-4.961015267763287, -3.020499234553427, 1.156193189905025);
+		circles.emplace_back(-3.460494556929916, 2.288062821608037, 1.342849821108393);
+		circles.emplace_back(3.30658309860155, -1.929743520449847, 1.352735911798663);
+		circles.emplace_back(3.598702971357852, -1.267938970122486, 0.7776984652271494);
+		circles.emplace_back(0.8530579530633986, -2.440140985418111, 1.105056527326815);
+		circles.emplace_back(-2.318604153115302, 4.945078541059047, 1.520960688148625);
+		circles.emplace_back(4.555986330378801, 2.449849543627352, 1.041340431920253);
+		circles.emplace_back(-2.293816080782562, -1.247918528970331, 1.337413972825743);
+		circles.emplace_back(-2.863754348363727, 1.198901298921555, 1.21705346989911);
+		circles.emplace_back(4.802035733591765, 2.71822813199833, 0.8757757635088637);
+		circles.emplace_back(-1.186044726055115, -0.7187193096615374, 1.344755692942999);
+		circles.emplace_back(0.1237120083533227, -3.160318227019161, 1.618283297889866);
+		circles.emplace_back(4.65088170254603, 0.3372001345269382, 1.010443842108361);
+		circles.emplace_back(0.2147435653023422, -1.620019364636391, 1.417986944993026);
+		circles.emplace_back(-4.637374214362353, 1.029957642313093, 1.214000490284525);
+		circles.emplace_back(3.204292596783489, -4.753993113990873, 0.9310709906974807);
+		circles.emplace_back(0.3570672334171832, -0.8245236915536225, 0.6685512657044455);
+		circles.emplace_back(3.623093522619456, 1.309451155830175, 1.10941307072062);
+		circles.emplace_back(-1.681109319906682, 0.3566460474394262, 1.432436211197637);
+		circles.emplace_back(2.730563280638307, -4.268121847417206, 1.64515471199993);
+		circles.emplace_back(2.984236257616431, 3.137213669251651, 1.578556021372788);
+		circles.emplace_back(-4.164985355455428, -1.043032433371991, 1.056516380910762);
+		circles.emplace_back(-1.707513600122184, 0.2360611385665834, 0.4915960874175653);
+		circles.emplace_back(2.522499912884086, 4.107723238412291, 1.462488874257542);
+		circles.emplace_back(-3.386080653872341, -3.637444388587028, 0.8115609667031094);
+		circles.emplace_back(3.737156062852591, 2.81941230641678, 1.150868826475926);
+		circles.emplace_back(4.982428562361747, -3.402751407120377, 0.799669081880711);
+		circles.emplace_back(-4.972983787301928, -2.199285195674747, 0.9368795439833775);
+		circles.emplace_back(-4.038273950573057, -4.020454690326005, 1.277462141658179);
+		circles.emplace_back(0.691416256595403, -4.914940858725458, 0.8694759629433975);
+		circles.emplace_back(0.5460460693575442, 1.590209703426808, 0.6514990615425631);
+		circles.emplace_back(3.08989443583414, -4.187778613995761, 1.538806894910522);
+		circles.emplace_back(-0.5542949098162353, -2.119783072266728, 1.15781256610062);
+		circles.emplace_back(4.731385929044336, -0.3345837234519422, 1.421376418718137);
+		circles.emplace_back(-0.06903081899508834, 3.40898723108694, 0.9193596974713727);
+		circles.emplace_back(-0.3905102727003396, 4.798762102145702, 0.9384848754154518);
+		circles.emplace_back(1.4079489861615, 1.515481618698686, 1.878035243204795);
+	}
+	result_expected = -1;
+
+	timer.reset();
+	result_actual = algorithm(a107, b107, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #107: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a108(-3.842293019872159, 2.634805621579289);
+	Point b108(2.948530243244022, -2.969537680968642);
+	{
+		circles.emplace_back(4.800060500856489, -2.769076095428318, 0.612027670466341);
+		circles.emplace_back(2.143677512649447, 3.09743870748207, 1.144586207414977);
+		circles.emplace_back(-0.1174558443017304, -2.729489270132035, 1.388914105226286);
+		circles.emplace_back(4.037538461852819, 4.741430913563818, 0.7302489153807983);
+		circles.emplace_back(3.447112904395908, 3.06453492725268, 1.265148527012206);
+		circles.emplace_back(1.372100582811981, -2.968499262351543, 1.397312464076094);
+		circles.emplace_back(-3.063152946997434, 2.316741265822202, 0.5088786368491128);
+		circles.emplace_back(-3.651449109893292, 4.360161812510341, 0.9515042101731523);
+		circles.emplace_back(0.5959581560455263, -2.854800724890083, 1.030221959599294);
+		circles.emplace_back(0.41722476715222, 1.88856542808935, 0.5242541298968717);
+		circles.emplace_back(-0.1987671968527138, 4.837727744597942, 0.6136385093675926);
+		circles.emplace_back(2.434763864148408, -1.435959490481764, 1.440011637262069);
+		circles.emplace_back(-1.967424473259598, -0.304118765052408, 0.7217969851801171);
+		circles.emplace_back(-2.231765554752201, 2.560424122493714, 1.547646264615469);
+		circles.emplace_back(0.8942719246260822, -1.407989680301398, 0.7925897703738882);
+		circles.emplace_back(4.369155403692275, 4.74420984974131, 1.165419510169886);
+		circles.emplace_back(-0.2803131588734686, -0.1243739738129079, 0.5312254466349259);
+		circles.emplace_back(-2.710396086331457, 1.296885132323951, 0.8013198447180911);
+		circles.emplace_back(-1.493043799418956, 3.995767694432288, 1.453038471122272);
+		circles.emplace_back(-2.219464562367648, -0.5050775804556906, 1.227545057213865);
+		circles.emplace_back(-2.008175163064152, 3.405292222741991, 0.8973041026154532);
+		circles.emplace_back(-4.250826442148536, 4.6137327211909, 0.5970958064077422);
+		circles.emplace_back(-0.6838735868223011, -2.269028581213206, 1.445432600122876);
+		circles.emplace_back(3.707793850917369, 4.730483905877918, 0.8793114332249388);
+		circles.emplace_back(0.746495274361223, -3.419997075106949, 0.3759401548886672);
+		circles.emplace_back(-4.82955522602424, -2.396970160771161, 0.9472337760729714);
+		circles.emplace_back(-2.012256172019988, -4.540991063695401, 1.211054954235442);
+		circles.emplace_back(-0.5028827185742557, 3.548290205653757, 0.6604269187664613);
+		circles.emplace_back(-4.431067204568535, -1.144184318836778, 1.993215213180519);
+		circles.emplace_back(-2.803406359162182, 4.083264607470483, 1.339810488256626);
+		circles.emplace_back(-2.692494571674615, -2.672724619042128, 1.211551947263069);
+		circles.emplace_back(3.429674666840583, 1.775458285119385, 1.113681306852959);
+		circles.emplace_back(1.72795053338632, 1.198111160192639, 0.7162226975196972);
+		circles.emplace_back(1.653703341726214, -3.973159447778016, 1.213902891124599);
+		circles.emplace_back(-2.723697100300342, 0.9562341240234673, 1.349673356045969);
+		circles.emplace_back(-3.499284663703293, 0.7024105894379318, 1.43145093943458);
+		circles.emplace_back(-0.09652691660448909, 4.979894401039928, 1.024272157787345);
+	}
+	result_expected = 17.9340243222033;
+
+	timer.reset();
+	result_actual = algorithm(a108, b108, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #108: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a109(-3.624325111042708, 0.3301214743405581);
+	Point b109(2.534309422131628, -0.8213437106460333);
+	{
+		circles.emplace_back(0.1737918495200574, 1.353599282447249, 0.8211046288022771);
+		circles.emplace_back(1.420561133418232, -4.932794135529548, 1.745380455884151);
+		circles.emplace_back(-0.1875047688372433, -3.692304089199752, 1.333657399681397);
+		circles.emplace_back(-1.217915553133935, -2.780239454004914, 1.183362578763626);
+		circles.emplace_back(-4.472020009998232, 1.771241708192974, 0.8958710223669185);
+		circles.emplace_back(-1.93344310624525, 4.470786636229604, 0.7795052475994453);
+		circles.emplace_back(-1.951006634626538, -3.509446566458791, 0.9920243581989779);
+		circles.emplace_back(-2.439732530619949, -3.915922094602138, 1.267377028125338);
+		circles.emplace_back(0.2201833645813167, -1.107538871001452, 0.7801937480689958);
+		circles.emplace_back(2.84212363185361, 3.612434805836529, 0.996934520243667);
+		circles.emplace_back(-2.332276033703238, 4.798295742366463, 1.25741214568261);
+		circles.emplace_back(0.6725956522859633, -0.02931400435045362, 1.195305484603159);
+		circles.emplace_back(0.1150967064313591, -3.260517369490117, 1.162196114216931);
+		circles.emplace_back(-1.912277236115187, 4.83408093219623, 0.9640152934705838);
+		circles.emplace_back(-4.869277647230774, -3.772874695714563, 0.7295387240359559);
+		circles.emplace_back(-4.859073178377002, 1.196784439962357, 1.482311439397745);
+		circles.emplace_back(0.8455130900256336, 4.62644848274067, 0.5744968177052214);
+		circles.emplace_back(-2.689951870124787, 3.120251649525017, 0.9978873358806595);
+		circles.emplace_back(-0.4570777365006506, -0.236642153467983, 1.393121414654888);
+		circles.emplace_back(4.354271406773478, -0.1356455986388028, 0.8949224021984263);
+		circles.emplace_back(4.93155027506873, -0.5576842906884849, 0.7019959039287641);
+		circles.emplace_back(-0.4264213959686458, -3.034776041749865, 0.6713476121192797);
+		circles.emplace_back(-1.531041024718434, 4.753950575832278, 1.427295110956766);
+		circles.emplace_back(-1.439915949013084, 1.288618620019406, 0.9914253736613318);
+		circles.emplace_back(1.257690645288676, -3.03121269447729, 1.092364261788316);
+		circles.emplace_back(-1.613923858385533, -1.603781415615231, 0.9935997945955023);
+		circles.emplace_back(1.530581412371248, 0.7002033502794802, 1.376840305724181);
+		circles.emplace_back(2.127052575815469, -4.75731291109696, 0.9267459627008064);
+		circles.emplace_back(3.437658005859703, -1.874321398790926, 1.131809555948712);
+		circles.emplace_back(-4.45585855981335, 4.873488831799477, 1.16254987034481);
+		circles.emplace_back(4.574506252538413, 1.50629247771576, 0.9436147296102717);
+		circles.emplace_back(0.706705164629966, 1.589192727115005, 1.209895489527844);
+		circles.emplace_back(-2.609723696950823, -2.294159994926304, 0.9499273851746692);
+		circles.emplace_back(3.557514587882906, -0.9335584496147931, 0.7839173634303733);
+		circles.emplace_back(-4.934118513483554, 3.400663074571639, 1.263045862247236);
+		circles.emplace_back(-1.857179112266749, -2.650614941958338, 1.512766116089187);
+	}
+	result_expected = 10.03281998056108;
+
+	timer.reset();
+	result_actual = algorithm(a109, b109, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #109: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a110(-3.957887265365571, -0.1224720757454634);
+	Point b110(3.844673836138099, -0.7752236481755972);
+	{
+		circles.emplace_back(-1.023787858430296, 4.609296193812042, 1.000921175279655);
+		circles.emplace_back(-3.473772031720728, 3.204521618317813, 1.403745111147873);
+		circles.emplace_back(4.675325218122452, -4.256850506644696, 1.371446319227107);
+		circles.emplace_back(-1.112776070367545, 2.193837685044855, 0.8023837413405999);
+		circles.emplace_back(1.919966095592827, -4.210789201315492, 1.575252636731602);
+		circles.emplace_back(-4.45762196322903, 0.6989294174127281, 0.590300395223312);
+		circles.emplace_back(4.929418235551566, -4.419254704844207, 1.565798383322544);
+		circles.emplace_back(-0.3428244474343956, 1.460260429885238, 0.5709864446660503);
+		circles.emplace_back(-1.076654384378344, 1.272477938327938, 0.5980895802611484);
+		circles.emplace_back(-2.231282850261778, -1.660742566455156, 0.7437057663453742);
+		circles.emplace_back(1.796254094224423, -1.050222280900925, 1.562432074476965);
+		circles.emplace_back(4.628667824435979, 4.005039667245001, 0.7953843138879164);
+		circles.emplace_back(-0.8013699785806239, 2.836169565562159, 0.3065716600278392);
+		circles.emplace_back(3.534181884024292, 2.983391981106251, 0.8168374585686251);
+		circles.emplace_back(-4.985497810412198, -0.5106893996708095, 0.7624087845208123);
+		circles.emplace_back(-0.8146217721514404, -4.875866083893925, 1.246728653251193);
+		circles.emplace_back(1.471266967710108, 3.012286222074181, 1.204997801431455);
+		circles.emplace_back(1.182158889714628, 3.195380873512477, 1.065207661758177);
+		circles.emplace_back(1.457460212986916, -4.337449769955128, 0.9065016667591407);
+		circles.emplace_back(1.566132560838014, -0.6907127820886672, 1.332418783358298);
+		circles.emplace_back(3.807753303553909, 3.065051960293204, 0.8436714159557596);
+		circles.emplace_back(-1.924876437988132, 1.973704907577485, 0.6824991895584389);
+		circles.emplace_back(4.091794386040419, 2.279062152374536, 1.611755694565363);
+		circles.emplace_back(4.758215483743697, 2.497784995939583, 0.9288046778878196);
+		circles.emplace_back(2.564609681721777, 2.979928015265614, 1.628019053512253);
+		circles.emplace_back(2.048497463110834, 0.006893097888678312, 0.6984048348618671);
+		circles.emplace_back(1.151123445015401, -4.252543288748711, 1.011758657475002);
+		circles.emplace_back(-1.941350183915347, 2.19330366468057, 1.280881787813269);
+		circles.emplace_back(-3.604051081929356, -4.348154773470014, 1.342357492283918);
+		circles.emplace_back(0.50122449407354, -2.106018338818103, 1.135646412777714);
+		circles.emplace_back(-1.038053624797612, 2.746043347287923, 1.259998094779439);
+		circles.emplace_back(2.990944583434612, 1.39535398920998, 0.7408530531218275);
+		circles.emplace_back(-3.742861899081618, 2.460155209992081, 1.322684266068973);
+		circles.emplace_back(-0.6894341832958162, 0.767316750716418, 1.373048491100781);
+		circles.emplace_back(-3.140586104709655, -3.00104635534808, 1.505679166619666);
+		circles.emplace_back(3.264811814296991, -2.725181805435568, 0.767433102033101);
+		circles.emplace_back(-2.6579455495812, 2.417800279799849, 1.062866629124619);
+		circles.emplace_back(-1.241386474575847, 3.755200940649956, 0.4115418082801625);
+		circles.emplace_back(-2.369556308258325, 3.845233127940446, 1.201378462580033);
+		circles.emplace_back(3.466352086979896, 0.5330808251164854, 0.8577696377178654);
+	}
+	result_expected = 21.08387333978086;
+
+	timer.reset();
+	result_actual = algorithm(a110, b110, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #110: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a111(-3.778286985587329, 1.665761696174741);
+	Point b111(3.000821185763925, -0.5783965792506933);
+	{
+		circles.emplace_back(-1.586767940316349, -1.341976930852979, 1.152185937599279);
+		circles.emplace_back(0.8331040502525866, 1.921679403167218, 0.9906797478673979);
+		circles.emplace_back(1.020244664978236, -3.83379117352888, 1.107271489244886);
+		circles.emplace_back(-0.380810599308461, 2.809819595422596, 1.012329998402856);
+		circles.emplace_back(-0.5673651420511305, -0.1355355768464506, 1.498860548832454);
+		circles.emplace_back(3.246456861961633, -2.971411275211722, 1.132521335384808);
+		circles.emplace_back(-1.514008736703545, 4.363292010966688, 0.8554082969436422);
+		circles.emplace_back(4.819205163512379, -0.3483669576235116, 0.120994374784641);
+		circles.emplace_back(3.799145042430609, 3.340866670478135, 1.252107114461251);
+		circles.emplace_back(-0.6110934796743095, 4.55259365728125, 1.341276135458611);
+		circles.emplace_back(-0.01140121603384614, 1.117933376226574, 0.8505436957115307);
+		circles.emplace_back(-4.832457413431257, 2.611711367499083, 0.598264801944606);
+		circles.emplace_back(3.209127511363477, 3.45462003024295, 1.017223991383798);
+		circles.emplace_back(-1.302984214853495, 4.127881412860006, 0.9274222470587119);
+		circles.emplace_back(4.911519607994705, -0.2954593789763749, 1.506362700718455);
+		circles.emplace_back(-3.384786315727979, -4.51331578893587, 0.9106262852670625);
+		circles.emplace_back(-3.828228290658444, 3.468013049568981, 1.005500867008231);
+		circles.emplace_back(0.2121535665355623, 0.06109649548307061, 1.605620528408326);
+		circles.emplace_back(3.696402760688215, -3.610689782071859, 1.427832731674425);
+		circles.emplace_back(2.608762786258012, 0.9764757729135454, 0.7861644897377118);
+		circles.emplace_back(4.808297285344452, -2.883600515779108, 1.531602287502028);
+		circles.emplace_back(2.57912544766441, -1.805591818410903, 1.106534710410051);
+		circles.emplace_back(3.506650968920439, 2.694870859850198, 0.8540001900168135);
+		circles.emplace_back(-1.477260503452271, -3.097311204764992, 1.416692044003867);
+		circles.emplace_back(2.693440502043813, 3.189887313637882, 0.6943412147695198);
+		circles.emplace_back(-1.236604636069387, -0.8707136218436062, 0.8657954630209133);
+		circles.emplace_back(-2.734226633328944, -1.373477268498391, 0.8386011458234861);
+		circles.emplace_back(0.240143605042249, 4.869102945085615, 1.313496217108332);
+		circles.emplace_back(-0.5294514284469187, 4.646339456085116, 1.14817972315941);
+		circles.emplace_back(0.471520668361336, 1.561169500928372, 1.21074036906939);
+		circles.emplace_back(-4.619446240831167, -1.526615924667567, 0.817499138158746);
+		circles.emplace_back(-2.962018253747374, 3.415034285280854, 1.022676137485541);
+		circles.emplace_back(4.140454905573279, 0.9941078047268093, 1.561679592053406);
+		circles.emplace_back(-2.002699908334762, -4.18872895417735, 1.413001133804209);
+		circles.emplace_back(-0.3195854718796909, 2.537749928887933, 1.081243219575845);
+	}
+	result_expected = 16.4982449792727;
+
+	timer.reset();
+	result_actual = algorithm(a111, b111, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #111: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a112(-3.886600207071751, 3.536135198548436);
+	Point b112(2.825044752564281, 2.059943312779069);
+	{
+		circles.emplace_back(4.090649371501058, 1.129560677800328, 1.41444650220219);
+		circles.emplace_back(-4.369590764399618, 2.005102902185172, 1.505405834014527);
+		circles.emplace_back(-1.863438833970577, 3.048947465140373, 0.7372024840908125);
+		circles.emplace_back(1.345455416012555, 4.046367814298719, 0.4859903990989551);
+		circles.emplace_back(-4.709182141814381, -3.872407933231443, 1.826821110979654);
+		circles.emplace_back(1.976839250419289, 3.100044305901974, 0.8721217418788001);
+		circles.emplace_back(2.001420713495463, -4.126920111011714, 1.189887355011888);
+		circles.emplace_back(3.892503429669887, -0.8544628159143031, 0.9355325443437322);
+		circles.emplace_back(-1.444350781384856, 4.446395805571228, 1.14152400533203);
+		circles.emplace_back(4.738652782980353, -2.248249270487577, 1.097342800418846);
+		circles.emplace_back(0.745977524202317, -1.070444311480969, 0.9026324975537136);
+		circles.emplace_back(4.148181707132608, 3.643945080693811, 0.9394440170144661);
+		circles.emplace_back(0.1477462588809431, 0.3888312005437911, 0.211791336000897);
+		circles.emplace_back(4.16559329489246, 3.509789395611733, 0.6223500898806378);
+		circles.emplace_back(0.07646080804988742, 3.389329568017274, 1.137529882160015);
+		circles.emplace_back(4.942609381396323, 0.05388913443312049, 1.141814658953808);
+		circles.emplace_back(4.663680901285261, 3.878408803138882, 0.6194687202805653);
+		circles.emplace_back(-2.042110522743315, 1.087408557068557, 1.281319435383193);
+		circles.emplace_back(-0.04468989791348577, 3.335877594072372, 1.383028748561628);
+		circles.emplace_back(4.932245307136327, -3.439496720675379, 1.347030179924332);
+		circles.emplace_back(2.244687543716282, -2.461852168198675, 1.799559581861831);
+		circles.emplace_back(4.497456422541291, -3.339878518600017, 0.7934966998873278);
+		circles.emplace_back(3.755228004883975, -2.048523507546633, 0.7393237893702462);
+		circles.emplace_back(-0.7177388924174011, -0.8456738875247538, 0.6497404193272813);
+		circles.emplace_back(2.153315546456724, -2.18336581485346, 0.623927764664404);
+		circles.emplace_back(0.7530766609124839, -1.941048305016011, 0.6887042711721733);
+		circles.emplace_back(0.6418829713948071, -0.2400369965471327, 1.088069795421325);
+		circles.emplace_back(4.814483204390854, -2.524593842681497, 1.445113565237261);
+		circles.emplace_back(1.848733259830624, 1.599616918247193, 0.709618197265081);
+		circles.emplace_back(-4.598882005084306, -3.293605863582343, 1.310239093122072);
+		circles.emplace_back(-4.899797800462693, -3.701658046338707, 1.1919449420413);
+		circles.emplace_back(4.77560613071546, 1.245286522898823, 1.484885749989189);
+		circles.emplace_back(-4.922421609517187, -1.926180601585656, 1.197997606988065);
+		circles.emplace_back(1.813097696285695, -1.517654198687524, 0.8481727830367163);
+		circles.emplace_back(2.809954502154142, -4.379936794284731, 1.148414532816969);
+		circles.emplace_back(1.328011841978878, 2.472296545747668, 0.934825280145742);
+		circles.emplace_back(4.557398355100304, -2.140970204491168, 0.8945636878488584);
+		circles.emplace_back(-3.097327046561986, -2.75104597909376, 1.193407430988736);
+		circles.emplace_back(-2.033231954555959, -4.752657397184521, 1.055836292891763);
+	}
+	result_expected = 9.490896110376527;
+
+	timer.reset();
+	result_actual = algorithm(a112, b112, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #112: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a113(-2.384485750924796, 1.846013085916638);
+	Point b113(3.58218847727403, -0.8975841905921698);
+	{
+		circles.emplace_back(0.6452524452470243, -0.2932859188877046, 0.4769902931759133);
+		circles.emplace_back(-0.2261845930479467, 0.6116839381866157, 1.07840628165286);
+		circles.emplace_back(-1.461701497901231, -2.168619751464576, 1.547667612251826);
+		circles.emplace_back(2.59259992511943, -2.201123333070427, 0.7240157784661277);
+		circles.emplace_back(0.9883743873797357, 4.134033678565174, 0.4503847904736176);
+		circles.emplace_back(3.058827186468989, -3.334230959881097, 0.8838424903107807);
+		circles.emplace_back(1.457269589882344, -4.517676669638604, 0.8855303011136129);
+		circles.emplace_back(-3.858303038869053, -2.673915138002485, 1.517387032345868);
+		circles.emplace_back(-4.194508099462837, 2.294823850970715, 0.6921270827529952);
+		circles.emplace_back(-1.293774240184575, -4.013421393465251, 1.183439767104574);
+		circles.emplace_back(-3.665408890228719, -1.161907000932842, 1.05224686244037);
+		circles.emplace_back(2.519571629818529, -2.277233877684921, 1.153740646340884);
+		circles.emplace_back(-0.4546324140392244, 0.3558038990013301, 1.170658845524303);
+		circles.emplace_back(4.063677105586976, 0.6756995362229645, 0.7764410141156985);
+		circles.emplace_back(-4.316406787838787, 2.295371133368462, 1.176130235823803);
+		circles.emplace_back(0.8536506886593997, -0.7850964809767902, 1.026387975481339);
+		circles.emplace_back(-2.028883832972497, -2.541224232409149, 0.7920600229641422);
+		circles.emplace_back(-0.1739666261710227, -0.6877949996851385, 0.9054750055307522);
+		circles.emplace_back(-1.87537889694795, -4.610115841496736, 0.7453354869736358);
+		circles.emplace_back(3.853649522643536, 4.152632441837341, 1.345808260072954);
+		circles.emplace_back(-2.317499078344554, 3.961596672888845, 1.547494245297275);
+		circles.emplace_back(4.536616222467273, -2.010763471480459, 0.439377154991962);
+		circles.emplace_back(2.284668108914047, 2.700232218485326, 0.5326584013877436);
+		circles.emplace_back(-1.395044692326337, -2.3619180242531, 0.9223538358928635);
+		circles.emplace_back(-1.314696546178311, -1.369172988925129, 0.9278115680208429);
+		circles.emplace_back(0.01572318142279983, -0.3036204515956342, 0.7684186022961512);
+		circles.emplace_back(-3.437225085217506, 4.994199622888118, 0.2532126511679962);
+		circles.emplace_back(4.779262647498399, -3.478434684220701, 1.922827083221637);
+		circles.emplace_back(-3.554060033056885, -4.576189739163965, 0.9203624757239595);
+		circles.emplace_back(-3.73275222023949, 2.367553773801774, 0.4438248454360291);
+		circles.emplace_back(-0.4762693797238171, 4.833651513326913, 1.54885619294364);
+		circles.emplace_back(-4.325314376037568, -3.414376622531563, 0.7568338798126205);
+		circles.emplace_back(4.594797973986715, -4.814323575701565, 1.226825510733761);
+		circles.emplace_back(3.757159824017435, 1.120277314912528, 0.642789587075822);
+		circles.emplace_back(1.768194090109318, 0.4052579519338906, 1.115497983177193);
+		circles.emplace_back(2.147477038670331, -3.988874147180468, 1.18673536775168);
+	}
+	result_expected = 7.378431860720976;
+
+	timer.reset();
+	result_actual = algorithm(a113, b113, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #113: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a114(-3.308218527119607, 1.641663821414113);
+	Point b114(3.264070787932724, 2.801618719473481);
+	{
+		circles.emplace_back(-4.440482484642416, -3.967216664459556, 1.335643888660706);
+		circles.emplace_back(-4.773840468842536, 3.049637128133327, 1.259069639001973);
+		circles.emplace_back(-1.915365650784224, -0.1027044677175581, 0.8301262769615277);
+		circles.emplace_back(0.2630449621938169, -2.083918375428766, 0.7387645485112443);
+		circles.emplace_back(-3.993561223614961, 3.862728506792337, 1.054014280554838);
+		circles.emplace_back(1.567390051204711, -3.534439748618752, 1.699625922902487);
+		circles.emplace_back(2.141680305358022, -3.563416691031307, 0.704856976144947);
+		circles.emplace_back(1.187604481820017, 4.017227261792868, 1.646109217102639);
+		circles.emplace_back(0.2589922654442489, 1.481811713892967, 0.9474222279386594);
+		circles.emplace_back(-1.89361923141405, 1.264821996446699, 1.247041591978632);
+		circles.emplace_back(3.663623274769634, -4.199135263916105, 0.3795721782604232);
+		circles.emplace_back(-0.9136800398118794, 4.917349510360509, 1.007093764585443);
+		circles.emplace_back(-1.563781502190977, -3.751248845364898, 1.294714573421516);
+		circles.emplace_back(0.7989016943611205, -4.655136980582029, 1.231607451359741);
+		circles.emplace_back(3.328089180868119, -3.397420074325055, 1.303675701026805);
+		circles.emplace_back(3.596685260999948, 0.976239365991205, 0.4130391742801294);
+		circles.emplace_back(-0.450538641307503, -1.016263363417238, 0.475993456901051);
+		circles.emplace_back(-1.337244303431362, 4.467850911896676, 1.060972507926635);
+		circles.emplace_back(-3.339500159490854, 3.993858054745942, 1.182377683487721);
+		circles.emplace_back(4.81475890846923, 2.19938246300444, 1.483345235302113);
+		circles.emplace_back(3.290597607847303, 4.365122749004513, 1.243547903024592);
+		circles.emplace_back(-0.1598992547951639, 0.5801733280532062, 0.9896537770284339);
+		circles.emplace_back(-4.839506570715457, -3.848533395212144, 1.100899439980276);
+		circles.emplace_back(0.9834271599538624, -0.07264700019732118, 1.043975575990044);
+		circles.emplace_back(4.167316721286625, -4.450624024029821, 1.389620105014183);
+		circles.emplace_back(-4.546669551637024, -4.887529511470348, 0.6751417505322024);
+		circles.emplace_back(-3.227694251108915, 4.98839519219473, 0.4929439638974145);
+		circles.emplace_back(-0.7631442206911743, 4.282769651617855, 0.8599535709014162);
+		circles.emplace_back(2.177039009984583, 4.768203890416771, 0.6677521523321047);
+		circles.emplace_back(3.584600987378508, -4.384393387008458, 1.413891001115553);
+		circles.emplace_back(-0.8861366030760109, -4.125411610584706, 0.8666916351066902);
+		circles.emplace_back(-1.740203520748764, 4.430850076023489, 1.277881245524622);
+		circles.emplace_back(3.405469788704067, -0.8860585954971611, 0.7581048502353951);
+		circles.emplace_back(-0.9394759987480938, -2.715837478172034, 1.297610278544016);
+		circles.emplace_back(-3.882228198926896, -0.3970880270935595, 1.685504365130328);
+	}
+	result_expected = 6.921533943700562;
+
+	timer.reset();
+	result_actual = algorithm(a114, b114, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #114: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a115(-2.774441487621516, 0.1904862392693758);
+	Point b115(2.229377178009599, 3.552666941657662);
+	{
+		circles.emplace_back(2.722399698104709, -0.2442470542155206, 0.8360957747558131);
+		circles.emplace_back(-4.603641161229461, 2.543660204391927, 1.781839247304015);
+		circles.emplace_back(4.789332828950137, 4.319605745840818, 1.079362446558662);
+		circles.emplace_back(-0.4256975906901062, -4.379955141339451, 1.23456104749348);
+		circles.emplace_back(2.754898590501398, -4.640898609068245, 1.556872656592168);
+		circles.emplace_back(3.200037481728941, -1.998412602115422, 1.788971285591833);
+		circles.emplace_back(-3.47500265808776, -2.517079513054341, 0.8017711113439873);
+		circles.emplace_back(-3.340083083603531, 2.862795817200094, 0.4694785850355401);
+		circles.emplace_back(-0.4705192311666906, 1.920335206668824, 0.9588517053751274);
+		circles.emplace_back(-2.834873006213456, 3.606978834141046, 1.07708973151166);
+		circles.emplace_back(-2.152693632524461, -4.603569305036217, 1.385648474260233);
+		circles.emplace_back(-2.603241468314081, 3.889260350260884, 0.5206609107786789);
+		circles.emplace_back(-1.920673151034862, -3.549755353014916, 0.5385276786284521);
+		circles.emplace_back(-4.225846908520907, -1.354273895267397, 0.6041065141325817);
+		circles.emplace_back(-3.508149294648319, -2.713205029722303, 0.9534400252858176);
+		circles.emplace_back(4.300752675626427, 1.69651749311015, 1.068628586339764);
+		circles.emplace_back(4.530863470863551, 0.7635371317155659, 1.039389386516996);
+		circles.emplace_back(1.711415548343211, -1.852765067014843, 0.9877928463509306);
+		circles.emplace_back(4.354906228836626, 3.767026683781296, 1.258024888136424);
+		circles.emplace_back(3.404936406295747, 0.6286538881249726, 1.132017222349532);
+		circles.emplace_back(-4.628996967803687, -1.583189892116934, 1.199096415541135);
+		circles.emplace_back(-2.471320724580437, -0.8834205544553697, 1.00612699186895);
+		circles.emplace_back(-0.4198684706352651, -3.075798612553626, 0.4523896015016362);
+		circles.emplace_back(1.464293419849128, 0.5899627064354718, 0.9285702952416613);
+		circles.emplace_back(-3.498630363028497, -4.354661873076111, 1.27887830378022);
+		circles.emplace_back(3.809815009590238, 3.170462830457836, 1.103047764324583);
+		circles.emplace_back(-0.5358083150349557, -4.843188778031617, 1.060490125860087);
+		circles.emplace_back(-1.441831446718425, -1.008536333683878, 1.473510304815136);
+		circles.emplace_back(1.178292946424335, -3.265320544596761, 0.4419144084909931);
+		circles.emplace_back(0.4803751152940094, 4.432907940354198, 1.238280685781501);
+		circles.emplace_back(-4.627549794968218, -4.296924613881856, 1.023628345201723);
+		circles.emplace_back(3.428314763586968, -0.8501749741844833, 0.8158843870507553);
+		circles.emplace_back(-3.740621402394027, 2.113880810793489, 1.239042136422358);
+	}
+	result_expected = 6.247860376178471;
+
+	timer.reset();
+	result_actual = algorithm(a115, b115, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #115: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a116(-3.950136329513043, 0.1226111073046923);
+	Point b116(2.011521534528583, 1.230106526985765);
+	{
+		circles.emplace_back(-2.701282242778689, -1.978299932088703, 0.6943675369257107);
+		circles.emplace_back(0.4096430796198547, -3.011457237880677, 1.083213631738909);
+		circles.emplace_back(2.279847704339772, -4.733474070671946, 0.768895149952732);
+		circles.emplace_back(-0.08912621298804879, 0.2144710370339453, 0.9945809504250064);
+		circles.emplace_back(3.840613982174546, -2.010406304616481, 1.939168063062243);
+		circles.emplace_back(3.268515698146075, -4.919264845084399, 0.8955376346828415);
+		circles.emplace_back(-4.884654756169766, -4.987377582583576, 0.9072885682573542);
+		circles.emplace_back(3.801096233073622, -2.455797039438039, 0.641561794350855);
+		circles.emplace_back(4.8166902246885, -4.658674846868962, 1.425059398566373);
+		circles.emplace_back(1.642463312018663, -4.246945979539305, 1.058933645836078);
+		circles.emplace_back(-2.54450278589502, 0.8285949402488768, 1.055289629311301);
+		circles.emplace_back(-3.353945629205555, 2.533547941129655, 0.9464793740538879);
+		circles.emplace_back(-3.237101689446718, 2.584150761831552, 0.53527775418479);
+		circles.emplace_back(-2.383569094818085, -4.507633096072823, 1.334353940351866);
+		circles.emplace_back(-2.462699527386576, -0.468384416308254, 0.9749694459373131);
+		circles.emplace_back(4.04819023096934, 3.599160581361502, 1.472621163423173);
+		circles.emplace_back(-3.106629003304988, 0.477954160887748, 0.7838710672454908);
+		circles.emplace_back(-0.8008668408729136, -0.2937611541710794, 1.163429049984552);
+		circles.emplace_back(-1.672287636902183, 1.478626902680844, 0.4777126396773383);
+		circles.emplace_back(-0.1334835519082844, 1.31078600184992, 0.7182416719617322);
+		circles.emplace_back(-0.6419336306862533, -2.465671135578305, 1.297103027789853);
+		circles.emplace_back(-0.7375487708486617, 1.207768491003662, 1.37162569204811);
+		circles.emplace_back(3.710880952421576, -0.402860261965543, 0.6075156264705583);
+		circles.emplace_back(-2.402558561880141, 1.359878454823047, 1.11852124214638);
+		circles.emplace_back(0.1428908412344754, 1.085251790937036, 0.9007082756375894);
+		circles.emplace_back(1.082142645027488, 1.82783335680142, 0.8571168119320646);
+		circles.emplace_back(2.100271491799504, 4.998895216267556, 1.122769211861305);
+		circles.emplace_back(-1.253719616215676, -4.896228334400803, 0.7137422362109646);
+		circles.emplace_back(1.073626985307783, -2.950973974075168, 1.287709940993227);
+		circles.emplace_back(3.212585325818509, -1.880798998754472, 0.6162394612329081);
+		circles.emplace_back(3.817369632888585, -3.374879921320826, 1.695009564585052);
+		circles.emplace_back(1.548548804130405, 0.2487602480687201, 0.6722610419848933);
+		circles.emplace_back(2.59321021148935, 0.391220252495259, 0.8596241730032488);
+		circles.emplace_back(2.679016671609133, 2.885222949553281, 0.4265896206023171);
+		circles.emplace_back(-3.35318150697276, 3.341495783533901, 1.126782170473598);
+	}
+	result_expected = 11.76415493539563;
+
+	timer.reset();
+	result_actual = algorithm(a116, b116, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #116: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a117(-3.159312948118895, 0.4318776894360781);
+	Point b117(3.106976216193289, -3.740796258673072);
+	{
+		circles.emplace_back(-1.530367380473763, 0.7299214624799788, 1.035058488906361);
+		circles.emplace_back(2.362942902836949, 2.965601671021432, 0.885769065353088);
+		circles.emplace_back(3.830545216333121, 0.267153934109956, 0.7823780411155894);
+		circles.emplace_back(4.739750039298087, -3.649275621864945, 0.5453486332437023);
+		circles.emplace_back(4.697913338895887, 2.061739398632199, 1.098129521333612);
+		circles.emplace_back(-4.108523388858885, 4.308293655049056, 1.720118593121879);
+		circles.emplace_back(-2.530034009832889, 3.533580538351089, 1.689955812622793);
+		circles.emplace_back(2.299829118419439, 2.373944853898138, 0.9427965245908125);
+		circles.emplace_back(3.461557195987552, 4.461927379015833, 0.8193508779862895);
+		circles.emplace_back(3.721007278654724, 0.3935922193340957, 1.113490401464514);
+		circles.emplace_back(0.8419688767753541, -4.652260148432106, 0.9482607420766725);
+		circles.emplace_back(-2.287012038286775, 2.121970958542079, 1.082163281808607);
+		circles.emplace_back(1.685710835736245, -4.612941842060536, 0.9563026647316292);
+		circles.emplace_back(2.804817811120301, 1.295078543480486, 1.185627998760901);
+		circles.emplace_back(-3.712977038230747, -1.53885104926303, 0.5653522743610665);
+		circles.emplace_back(1.746345695573837, 3.591747784521431, 0.6698878289898857);
+		circles.emplace_back(4.284497534390539, 3.59069979051128, 0.9793304331833496);
+		circles.emplace_back(-3.500274752732366, -2.173294008243829, 0.3792980235768482);
+		circles.emplace_back(-2.88627763511613, -1.657227713149041, 0.8178518078522756);
+		circles.emplace_back(-3.418710313271731, 3.775595386978239, 0.3268081739312038);
+		circles.emplace_back(2.295724542345852, 3.169059643987566, 1.318352728919126);
+		circles.emplace_back(3.760292625520378, -1.572458420414478, 1.030535821127705);
+		circles.emplace_back(3.357439048122615, 4.03224065201357, 1.340940659982152);
+		circles.emplace_back(4.597318966407329, -0.1807233528234065, 0.6808820126345381);
+		circles.emplace_back(1.370302664581686, 1.013677648734301, 0.9352193363709375);
+		circles.emplace_back(-2.353673067409545, 2.089710657019168, 1.52961842447985);
+		circles.emplace_back(-1.255131780635566, -0.312869178596884, 0.8322546373819932);
+		circles.emplace_back(0.1732303737662733, 1.367986651603132, 0.9010576436528935);
+		circles.emplace_back(-2.924773634877056, 2.463905054610223, 1.541374034318141);
+		circles.emplace_back(1.119354485999793, -0.8737995172850788, 1.580724386242218);
+		circles.emplace_back(1.952323180157691, 3.819311985280365, 0.6948950404068455);
+		circles.emplace_back(-4.290525058750063, 4.509113116655499, 1.135644784593023);
+		circles.emplace_back(-1.184839417692274, 3.650773807894439, 1.000955281103961);
+		circles.emplace_back(2.658028628211468, 2.018765297252685, 0.6140371307032182);
+		circles.emplace_back(-0.1408250699751079, -0.7629863568581641, 1.289259488112293);
+	}
+	result_expected = 7.631586474549986;
+
+	timer.reset();
+	result_actual = algorithm(a117, b117, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #117: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a118(-2.438917640130967, -2.413814691826701);
+	Point b118(3.556570881512016, -1.328390872105956);
+	{
+		circles.emplace_back(1.606719640549272, -3.137720802333206, 0.8379887391114607);
+		circles.emplace_back(0.3534623119048774, -3.345357056241482, 1.10290724367369);
+		circles.emplace_back(4.897930503357202, 3.978407455142587, 0.4437128048157319);
+		circles.emplace_back(1.687192821409553, 4.532503040973097, 1.244308845163323);
+		circles.emplace_back(-0.6817784323357046, -0.3773032245226204, 1.215568116935901);
+		circles.emplace_back(4.402466237079352, 3.709266886580735, 1.171383763221092);
+		circles.emplace_back(-1.195404368918389, -0.5704464227892458, 0.3705966675421223);
+		circles.emplace_back(-1.199800411704928, 4.658888562116772, 1.135427844547666);
+		circles.emplace_back(2.066165695432574, 3.578840240370482, 1.020010728086345);
+		circles.emplace_back(-1.281421456951648, -4.313032838981599, 1.215205950965173);
+		circles.emplace_back(0.4608131875284016, -0.2718443819321692, 0.8165481723612174);
+		circles.emplace_back(-1.584046168718487, 4.014235252980143, 1.352031534002162);
+		circles.emplace_back(4.405214509461075, 0.4807534324936569, 1.202975207823329);
+		circles.emplace_back(1.607973508071154, 3.825074203778058, 0.378873919439502);
+		circles.emplace_back(-3.587019618134946, -4.782830832991749, 1.513711055158637);
+		circles.emplace_back(4.707290900405496, 2.870411819312721, 1.824328262754716);
+		circles.emplace_back(0.4362009488977492, -4.688448451925069, 1.34214781827759);
+		circles.emplace_back(-2.845968168694526, 1.069826532620937, 1.532244073902257);
+		circles.emplace_back(4.978658363688737, -4.750211539212614, 1.884480974427424);
+		circles.emplace_back(2.408798465039581, 1.881901102606207, 1.258706647367217);
+		circles.emplace_back(-1.789312676992267, 1.756360891740769, 0.8112956016091629);
+		circles.emplace_back(-4.203867230098695, 2.470452242996544, 1.688270647986792);
+		circles.emplace_back(0.2970411232672632, 3.481063751969486, 0.7796667240792885);
+		circles.emplace_back(-4.90892726695165, -1.260815889108926, 1.054668235476129);
+		circles.emplace_back(-2.409521390218288, -0.489968943875283, 1.284244314511306);
+		circles.emplace_back(1.541943021584302, -2.533056626562029, 1.560267177200876);
+		circles.emplace_back(2.229378761257976, -0.02737935399636626, 1.31139953865204);
+		circles.emplace_back(-3.294708572793752, -3.911454386543483, 1.164151389640756);
+		circles.emplace_back(-3.496119629126042, -0.268917812500149, 1.014056558697484);
+		circles.emplace_back(-3.321121337357908, -4.485145935323089, 0.9333901737118139);
+		circles.emplace_back(-2.521503192838281, -0.8781378646381199, 1.176043888251297);
+		circles.emplace_back(3.729815545957536, 0.7991075259633362, 1.34111443341244);
+		circles.emplace_back(1.69695469783619, -4.134486394468695, 0.9299903835868463);
+		circles.emplace_back(0.7028213678859174, 4.175027611199766, 0.8944192135939374);
+		circles.emplace_back(2.544546930585057, 1.528703558724374, 1.074341764184646);
+		circles.emplace_back(1.092692285310477, -4.768627330195159, 0.6297034436138347);
+		circles.emplace_back(1.209830057341605, 0.9740879922173917, 1.101169724180363);
+	}
+	result_expected = 16.27098289467292;
+
+	timer.reset();
+	result_actual = algorithm(a118, b118, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #118: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a119(-2.85646005673334, 0.9972199071198702);
+	Point b119(3.132260066922754, -2.604603430256248);
+	{
+		circles.emplace_back(-3.557865379843861, 2.1992651023902, 1.33386569453869);
+		circles.emplace_back(-3.05411642184481, 4.912367041688412, 1.511888011801056);
+		circles.emplace_back(-4.076032780576497, -0.5307710240595043, 0.834819940966554);
+		circles.emplace_back(0.2319252979941666, -4.029584957752377, 0.9590186876943334);
+		circles.emplace_back(-0.9280571364797652, -2.89149803807959, 1.048040348687209);
+		circles.emplace_back(4.500797467771918, -4.911357976961881, 1.080623417417519);
+		circles.emplace_back(1.969368222635239, 4.109805498737842, 1.2335427331971);
+		circles.emplace_back(1.535357863176614, -4.213441389147192, 1.184365802607499);
+		circles.emplace_back(0.7524359761737287, 3.843183221761137, 0.8427748615154996);
+		circles.emplace_back(0.1809518621303141, 3.734072733204812, 1.000501560303382);
+		circles.emplace_back(-4.912945658434182, 4.136986986268312, 0.7607730531366541);
+		circles.emplace_back(0.4199287411756814, -3.705701848957688, 1.183222440793179);
+		circles.emplace_back(4.295517911668867, 2.133948339615017, 1.259997858130373);
+		circles.emplace_back(3.876516858581454, -4.617291793692857, 0.9344336171401664);
+		circles.emplace_back(-3.713171605486423, -1.929715338628739, 1.12305096082855);
+		circles.emplace_back(-4.826555557083338, -2.199650371912867, 0.9990612260764464);
+		circles.emplace_back(-4.246932400856167, 2.575007940176874, 1.118623895035125);
+		circles.emplace_back(2.996568761300296, 1.754572906065732, 0.8906150941969826);
+		circles.emplace_back(-4.056013252120465, -1.387853829655796, 0.9035095369210466);
+		circles.emplace_back(1.998726052697748, 1.964719987008721, 0.7818752374732867);
+		circles.emplace_back(-0.3412765241228044, 4.127104885410517, 0.8997624740703031);
+		circles.emplace_back(-0.3188741323538125, 0.5268373084254563, 1.199001790140755);
+		circles.emplace_back(1.34025450097397, -3.708499821368605, 1.155809955648146);
+		circles.emplace_back(1.493277230765671, -1.529615295585245, 0.8705020742723718);
+		circles.emplace_back(-0.6371517642401159, 2.909906420391053, 1.477009551110677);
+		circles.emplace_back(-4.761437580455095, -4.574108540546149, 0.6949801431270316);
+		circles.emplace_back(0.01237415941432118, 0.8418591856025159, 0.757397905155085);
+		circles.emplace_back(-0.8288773545064032, 3.804758249316365, 1.25627617018763);
+		circles.emplace_back(4.150845969561487, -4.071119904983789, 0.9371351194335147);
+		circles.emplace_back(-4.388762612361461, -1.867437500040978, 0.8361980012850836);
+		circles.emplace_back(1.38534972211346, 4.601785133127123, 0.6201329557457939);
+		circles.emplace_back(-3.374481999780983, -4.211322639603168, 1.238200349616818);
+		circles.emplace_back(-4.950766258407384, 4.327845417428762, 1.003913900000043);
+		circles.emplace_back(-1.160042386036366, -2.063750608358532, 1.043428423791192);
+		circles.emplace_back(1.848893908318132, 0.1790493936277926, 1.409337054588832);
+		circles.emplace_back(-4.495298338588327, -1.407896645832807, 1.453548852424137);
+		circles.emplace_back(4.463629934471101, 0.1565260929055512, 1.038189933006652);
+		circles.emplace_back(-0.7933301921002567, 2.200966549571604, 1.152045397064648);
+	}
+	result_expected = 7.21547140846883;
+
+	timer.reset();
+	result_actual = algorithm(a119, b119, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #119: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a120(-3.901858906727284, -0.9004443865269423);
+	Point b120(2.941859514918178, -3.970522647723556);
+	{
+		circles.emplace_back(2.797373568173498, 3.735283969435841, 1.739599002175964);
+		circles.emplace_back(-2.229935263749212, 0.3071151371113956, 1.232863120432012);
+		circles.emplace_back(0.3703079628758132, -3.703366953413934, 1.269858314772137);
+		circles.emplace_back(4.73652831511572, 4.294544418808073, 1.113072665012441);
+		circles.emplace_back(-0.8186348364688456, 0.8064340450800955, 1.143980413512327);
+		circles.emplace_back(-3.390273952390999, 2.419448222499341, 1.226432995009236);
+		circles.emplace_back(3.884189135860652, -4.879323698114604, 0.5506250080885365);
+		circles.emplace_back(-0.5978528666310012, 1.667533235158771, 1.33569623210933);
+		circles.emplace_back(-3.651222737971693, -3.550445714499801, 0.9953209240222349);
+		circles.emplace_back(2.997926699463278, 4.275260500144213, 0.8841602572007105);
+		circles.emplace_back(-1.222407903987914, -2.694236810784787, 1.922755760257132);
+		circles.emplace_back(2.120062292087823, 1.926584613975137, 1.184250177047215);
+		circles.emplace_back(0.6287409900687635, -2.087549713905901, 1.052551264525391);
+		circles.emplace_back(0.8031845674850047, 4.071702200453728, 1.159832090768032);
+		circles.emplace_back(1.726594686042517, -1.210916235577315, 1.542367199924774);
+		circles.emplace_back(4.988581400830299, -4.81041299412027, 0.7401839608093723);
+		circles.emplace_back(-2.942606618162245, 0.09343270910903811, 1.253353080595843);
+		circles.emplace_back(0.7435632008127868, -0.007384929340332747, 0.8869527562754228);
+		circles.emplace_back(4.535867415834218, -2.000781709793955, 1.421121818549);
+		circles.emplace_back(1.593273899052292, -1.207545448560268, 1.504483005660586);
+		circles.emplace_back(2.612455121707171, -1.834349564742297, 0.9110833426238968);
+		circles.emplace_back(-4.941438313107938, 2.486764134373516, 0.6748935213079675);
+		circles.emplace_back(1.546840739902109, -0.9704098640941083, 0.6097932677948847);
+		circles.emplace_back(-3.836034398991615, -3.417202483396977, 0.9120689775096252);
+		circles.emplace_back(4.753375754225999, 4.032030103262514, 1.221807325235568);
+		circles.emplace_back(4.829979964997619, -4.920093638356775, 1.325773415178992);
+		circles.emplace_back(3.876806481275707, 0.8500081929378211, 1.15206931817811);
+		circles.emplace_back(4.828017696272582, 0.2849451010115445, 1.164956343290396);
+		circles.emplace_back(-0.6708481046371162, 3.356847518589348, 1.617040108307265);
+		circles.emplace_back(-4.55956649268046, -3.648665936198086, 1.123831623070873);
+		circles.emplace_back(0.1951582380570471, 2.425579100381583, 0.8119769957615062);
+		circles.emplace_back(-3.09890364529565, 3.050698649603873, 1.736237282236107);
+		circles.emplace_back(2.786892422009259, 3.989673068281263, 1.055019694543444);
+		circles.emplace_back(-1.913608668837696, 3.728916386608034, 1.106491456762887);
+		circles.emplace_back(0.9185146749950945, 3.276093776803464, 1.320629587280564);
+		circles.emplace_back(-3.034073852468282, -4.714215404819697, 1.435643230122514);
+		circles.emplace_back(0.05525772692635655, 1.038782165851444, 0.5876743657281622);
+	}
+	result_expected = 13.53437018498092;
+
+	timer.reset();
+	result_actual = algorithm(a120, b120, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #120: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a121(-3.266006409656256, 0.2891313005238771);
+	Point b121(3.264251252170652, 1.35238922573626);
+	{
+		circles.emplace_back(0.4331262200139463, 1.105655508581549, 0.8738889279076829);
+		circles.emplace_back(-0.1208332343958318, -3.09900724561885, 1.331680843117647);
+		circles.emplace_back(-4.143223122227937, 1.169033080805093, 0.8929553122492506);
+		circles.emplace_back(0.5754024651832879, -0.6314712227322161, 0.9829843120416626);
+		circles.emplace_back(-0.9468577452935278, 3.061988262925297, 1.032772817485966);
+		circles.emplace_back(2.619041616562754, -0.08259180234745145, 1.114046930964105);
+		circles.emplace_back(1.502886961679906, 1.678064179141074, 1.06348775990773);
+		circles.emplace_back(-2.978294424246997, 4.186148752924055, 0.9253188997274264);
+		circles.emplace_back(0.281096042599529, 1.934030691627413, 0.7730776382843032);
+		circles.emplace_back(-1.117197626736015, -3.939380173105747, 1.141870426642708);
+		circles.emplace_back(-3.337721668649465, -1.025838560890406, 0.6071761918487026);
+		circles.emplace_back(-1.518134723883122, 4.014946685638279, 0.7723162127425893);
+		circles.emplace_back(-0.700960757676512, -4.809388050343841, 1.226534566679038);
+		circles.emplace_back(-4.62648413842544, 2.614463053178042, 0.6582398139638825);
+		circles.emplace_back(-4.043643411714584, -0.7765269535593688, 1.096351988916285);
+		circles.emplace_back(2.172063321340829, -0.9584481292404234, 1.429620810947381);
+		circles.emplace_back(2.216986769344658, -1.821707484778017, 1.280107780755497);
+		circles.emplace_back(4.224470464978367, -2.154942166525871, 0.7096974036423489);
+		circles.emplace_back(3.600872426759452, 4.591826752293855, 0.3673624926479533);
+		circles.emplace_back(2.600885641295463, 0.297549047973007, 0.6703142354032025);
+		circles.emplace_back(2.912516405340284, 2.938502861652523, 1.157769362651743);
+		circles.emplace_back(-0.4688414535485208, 1.522048905026168, 0.9136099387658759);
+		circles.emplace_back(1.095130618195981, -4.549459579866379, 0.7897482513682916);
+		circles.emplace_back(-3.666273362468928, 2.670953010674566, 0.6353910825913771);
+		circles.emplace_back(1.178962157573551, 2.473900879267603, 0.8794226384023204);
+		circles.emplace_back(4.813542745541781, -2.749798677396029, 0.2610062037827447);
+		circles.emplace_back(2.362662230152637, -2.023723034653813, 0.9856022661319002);
+		circles.emplace_back(3.119701368268579, -2.348551952745765, 0.5313489552820101);
+		circles.emplace_back(-0.708849725779146, 3.880270428489894, 0.6552454248769208);
+		circles.emplace_back(1.937023687642068, -3.250085811596364, 1.036313800071366);
+		circles.emplace_back(-2.230708345305175, -0.979305359069258, 0.8265404660021886);
+		circles.emplace_back(-0.2739644260145724, -1.070295644458383, 1.232552896649577);
+		circles.emplace_back(3.073362840805203, 2.942388865631074, 0.7229250981239601);
+		circles.emplace_back(-1.838268146384507, -2.710482000838965, 1.152589060482569);
+		circles.emplace_back(3.368048008996993, 0.6037961482070386, 0.6788427652558311);
+		circles.emplace_back(4.576165114995092, 0.09784197667613626, 0.4313809342915192);
+		circles.emplace_back(1.927622819785029, 4.696566283237189, 0.6113471847726032);
+		circles.emplace_back(-4.377346832770854, -2.207728463690728, 0.7562615714268759);
+		circles.emplace_back(-0.9825224499218166, -1.611562410835177, 1.715385474241339);
+	}
+	result_expected = 15.28122775305492;
+
+	timer.reset();
+	result_actual = algorithm(a121, b121, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #121: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a122(-2.318551498930901, -3.028897849842906);
+	Point b122(3.427557417657226, -1.184539532288909);
+	{
+		circles.emplace_back(4.582723302301019, 0.3378350497223437, 1.043713172920979);
+		circles.emplace_back(-4.229857323225588, 4.469528801273555, 0.7341053114039823);
+		circles.emplace_back(4.614423501770943, 3.286987741012126, 0.8430378685938194);
+		circles.emplace_back(-2.786840244662017, -1.203390511218458, 0.9498114157235249);
+		circles.emplace_back(-2.372958979103714, 2.125596629921347, 1.2325746136019);
+		circles.emplace_back(-3.73155073961243, -3.467373338062316, 1.285581438126974);
+		circles.emplace_back(3.370979621540755, -2.83343595219776, 1.544557832297869);
+		circles.emplace_back(-4.412152532022446, -1.006096994969994, 0.936318722530268);
+		circles.emplace_back(0.3188863745890558, 0.1267105923034251, 0.9393291630083694);
+		circles.emplace_back(4.616131747607142, 4.515856623183936, 0.8722492885543033);
+		circles.emplace_back(0.7654059934429824, -3.493044513743371, 1.389162760158069);
+		circles.emplace_back(-3.927846930455416, 3.334554692264646, 0.8591073021059855);
+		circles.emplace_back(-2.873418836388737, -4.933081676717848, 0.7487208454171195);
+		circles.emplace_back(-1.39846166362986, -4.845270488876849, 1.023556752013974);
+		circles.emplace_back(4.397394962143153, 2.877828918863088, 0.7705135313095525);
+		circles.emplace_back(-3.766713242512196, -1.320840700063854, 1.16568038740661);
+		circles.emplace_back(4.722045210655779, 0.8243507356382906, 1.522760378220118);
+		circles.emplace_back(0.09680323535576463, -0.2233401616103947, 1.576421658019535);
+		circles.emplace_back(-3.101119517814368, 4.712026787456125, 0.8286075871204956);
+		circles.emplace_back(0.6718603358604014, 0.7011122885160148, 1.663110194238834);
+		circles.emplace_back(-1.965326506178826, 1.737813183572143, 0.8743212723871693);
+		circles.emplace_back(0.1015793881379068, 4.847099168691784, 0.8103165567154065);
+		circles.emplace_back(1.407675633672625, -3.082908049691468, 0.798920011962764);
+		circles.emplace_back(4.785378302913159, 3.128142741043121, 1.223649360169657);
+		circles.emplace_back(-1.959833360742778, -4.900754804257303, 0.7164051510160788);
+		circles.emplace_back(0.913250760640949, 2.1567476936616, 1.447505973861553);
+		circles.emplace_back(4.096198400948197, -2.524521697778255, 0.9665430190740153);
+		circles.emplace_back(-2.604758210945874, 2.887620099354535, 0.6204862167360261);
+		circles.emplace_back(1.149745408911258, 2.153438569512218, 1.665250029205344);
+		circles.emplace_back(-2.577125655952841, -1.395780497696251, 0.4041839014971629);
+		circles.emplace_back(-3.985468891914934, -3.966297053266317, 0.4439828605158254);
+		circles.emplace_back(0.7722727837972343, 3.227894355077296, 0.645979421888478);
+		circles.emplace_back(2.626771733630449, 2.74431019788608, 0.8359517607605085);
+		circles.emplace_back(-0.5739270360209048, -0.5734830326400697, 1.583247745246626);
+		circles.emplace_back(-4.53918190440163, 4.990271094720811, 0.5729020862607285);
+		circles.emplace_back(0.6132400478236377, 0.08462968515232205, 0.9325120837660505);
+		circles.emplace_back(-3.56185546843335, -0.8914160192944109, 1.726326383813284);
+	}
+	result_expected = 6.034858288965026;
+
+	timer.reset();
+	result_actual = algorithm(a122, b122, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #122: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a123(-3.597401774954051, 0.9670662153512239);
+	Point b123(2.542782840784639, 1.270348945632577);
+	{
+		circles.emplace_back(3.73167754849419, 0.2393529959954321, 1.142337127611972);
+		circles.emplace_back(-2.03998921206221, 4.376005481462926, 1.466815421241336);
+		circles.emplace_back(-4.988388784695417, -4.903170994948596, 0.2087910671951249);
+		circles.emplace_back(-4.159589882474393, -2.897797881159931, 1.320447181700729);
+		circles.emplace_back(1.12210996216163, -3.717595094349235, 1.22648044640664);
+		circles.emplace_back(1.287201794330031, 3.011701859068125, 1.210813099215738);
+		circles.emplace_back(-3.451992135960609, -3.640145312529057, 1.057072463189252);
+		circles.emplace_back(3.722289309371263, -1.13955736393109, 1.312467110506259);
+		circles.emplace_back(1.846617290284485, -1.403736693318933, 0.9280955882975831);
+		circles.emplace_back(0.824216587934643, -2.713245686609298, 1.049999725702219);
+		circles.emplace_back(-1.095656410325319, -3.530717759858817, 0.8512924553127958);
+		circles.emplace_back(-4.806983682792634, 3.036296123173088, 1.75321495400276);
+		circles.emplace_back(-1.117037285584956, 4.623638999182731, 0.659407729585655);
+		circles.emplace_back(-2.982734672259539, -2.945296356920153, 0.7030365049606189);
+		circles.emplace_back(-2.210140281822532, -2.541875068563968, 0.8337234164355323);
+		circles.emplace_back(0.6661991844885051, -1.632676727604121, 1.266052065533586);
+		circles.emplace_back(-3.893881391268224, -2.735825015697628, 1.284465513913892);
+		circles.emplace_back(0.3546115732751787, -1.969053575303406, 0.8994524602079763);
+		circles.emplace_back(-2.175472897943109, -1.130238987971097, 1.159140359680168);
+		circles.emplace_back(4.325898054521531, 4.585477386135608, 0.4467917072819546);
+		circles.emplace_back(1.195533305872232, -2.543924229685217, 1.11121538837906);
+		circles.emplace_back(3.820316249039024, 3.989155592862517, 1.536315059126355);
+		circles.emplace_back(-2.440095038618892, -3.275661778170615, 1.329958157869987);
+		circles.emplace_back(-2.639719278085977, -4.208170517813414, 1.449216672149487);
+		circles.emplace_back(0.7552769896574318, -4.432491681072861, 1.624788079573773);
+		circles.emplace_back(-3.181559930089861, -1.208190785255283, 1.008826847397722);
+		circles.emplace_back(4.984307924751192, -3.03540299879387, 0.9398741204990073);
+		circles.emplace_back(-2.304346088785678, -3.602995935361832, 1.290242996742017);
+		circles.emplace_back(-3.18416804773733, -0.4947137483395636, 0.9605751566356048);
+		circles.emplace_back(-3.678727878723294, -2.462487553711981, 1.697254920587875);
+		circles.emplace_back(0.8771120221354067, 2.167417805176228, 1.094999344903044);
+		circles.emplace_back(1.590462408494204, -1.355198703240603, 0.629000920546241);
+		circles.emplace_back(-0.5992317455820739, -1.971497146878392, 1.515326068340801);
+		circles.emplace_back(1.8641746067442, -3.755251162219793, 1.51208869672846);
+		circles.emplace_back(4.879185545723885, 2.903945047874004, 1.024684007023461);
+		circles.emplace_back(1.252085522282869, -2.372806819621474, 1.437858592323027);
+	}
+	result_expected = 6.153461740270592;
+
+	timer.reset();
+	result_actual = algorithm(a123, b123, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #123: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a124(-3.622444208245724, -1.468334017321467);
+	Point b124(2.905426369514316, -2.819043820723891);
+	{
+		circles.emplace_back(1.205818464513868, -3.265026973094791, 1.249472562992014);
+		circles.emplace_back(1.701919178012758, 0.9935774351470172, 1.377045946265571);
+		circles.emplace_back(0.02691763220354915, -2.463976505678147, 1.175008237292059);
+		circles.emplace_back(1.904278986621648, -1.980843807104975, 0.7258746288483962);
+		circles.emplace_back(-1.807804533746094, 4.19875095365569, 1.477327792602591);
+		circles.emplace_back(-1.228158094454557, 0.2168413181789219, 1.174280944955535);
+		circles.emplace_back(-3.881551350932568, -4.25002089003101, 0.6347966735949739);
+		circles.emplace_back(-1.828265485819429, 1.481605477165431, 1.114692021976225);
+		circles.emplace_back(-0.3922519204206765, 1.786065597552806, 1.641269067977555);
+		circles.emplace_back(-4.601016065571457, 2.736893820110708, 1.71848407855723);
+		circles.emplace_back(-0.1327304705046117, 1.529098364990205, 1.161385901155882);
+		circles.emplace_back(-0.6070960615761578, -1.965292810928077, 1.078417970356531);
+		circles.emplace_back(4.012491044122726, -2.915912962052971, 0.1953185142716393);
+		circles.emplace_back(-3.047433460596949, 1.815912483725697, 0.8856558509403839);
+		circles.emplace_back(-1.693395113106817, 4.233860194217414, 0.9076979261590167);
+		circles.emplace_back(-4.981845219153911, 4.555946749169379, 1.596122082252987);
+		circles.emplace_back(4.673936881590635, 1.599037011619657, 0.9675801411038264);
+		circles.emplace_back(-2.716670243535191, -3.774480333086103, 1.071774113015272);
+		circles.emplace_back(-4.340807700064033, -0.8353462559171021, 0.7314768652198835);
+		circles.emplace_back(-3.762432138901204, -2.688502355013043, 0.9692233500769362);
+		circles.emplace_back(4.871054736431688, -1.32192520191893, 1.806439914205112);
+		circles.emplace_back(1.400925742927939, -3.560823269654065, 1.673705489258282);
+		circles.emplace_back(-1.939379659015685, -2.570814068894833, 0.5221215251134709);
+		circles.emplace_back(-0.3554586763493717, -3.27073477441445, 0.5293240975355729);
+		circles.emplace_back(-4.675342238042504, 3.347653003875166, 1.099780274392105);
+		circles.emplace_back(-0.5093448772095144, -1.563291710335761, 0.7170039898483083);
+		circles.emplace_back(4.99248158885166, 3.479128286708146, 1.105343137052841);
+		circles.emplace_back(4.915528160054237, 3.781263360287994, 0.766172664775513);
+		circles.emplace_back(4.745918700937182, -4.211900786031038, 1.213938084687106);
+		circles.emplace_back(4.144805099349469, 3.316206422168761, 0.9004910751478746);
+		circles.emplace_back(-0.4911328922025859, 1.047767584677786, 0.6861872322624549);
+		circles.emplace_back(-1.930469854269177, 3.25730841839686, 0.8765454551437869);
+		circles.emplace_back(-4.394605734851211, -3.919394065160304, 1.562006810563616);
+		circles.emplace_back(2.069614760112017, -2.223860553931445, 0.7854028542758896);
+		circles.emplace_back(-0.215812202077359, 4.549223722424358, 1.109194641350769);
+	}
+	result_expected = 7.696555175326627;
+
+	timer.reset();
+	result_actual = algorithm(a124, b124, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #124: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a125(-3.345984592568129, -2.771435065194964);
+	Point b125(2.877560948487371, -3.430283596739173);
+	{
+		circles.emplace_back(-2.869479155633599, -4.534430948551744, 0.7742097595939412);
+		circles.emplace_back(4.400428889784962, 4.904734629672021, 1.477033338579349);
+		circles.emplace_back(-2.813121259678155, -4.740997448097914, 0.9851519891293719);
+		circles.emplace_back(1.196700294967741, -0.2208715840242803, 1.48450571896974);
+		circles.emplace_back(4.972784409765154, 1.551279171835631, 0.5023493055952712);
+		circles.emplace_back(-4.474668179173023, 0.345766928512603, 1.074232222069986);
+		circles.emplace_back(2.790711664129049, -2.043701524380594, 0.6995431162184104);
+		circles.emplace_back(-2.443570776376873, 1.102563256863505, 0.9746274939039722);
+		circles.emplace_back(-0.3714152961038053, 4.565987240057439, 0.4281002881703898);
+		circles.emplace_back(0.3736215154640377, 3.256909020710737, 0.6145623495103791);
+		circles.emplace_back(3.621657316107303, 4.608842374291271, 1.053632058738731);
+		circles.emplace_back(-3.82399998838082, -0.7195038138888776, 1.629397691437043);
+		circles.emplace_back(-4.325770882423967, 2.20589981181547, 0.5146141499979421);
+		circles.emplace_back(0.6392643903382123, -0.08535832399502397, 1.232818821421824);
+		circles.emplace_back(-3.47123014042154, -1.045773548539728, 1.446147310943343);
+		circles.emplace_back(-3.094091133680195, 0.06288147298619151, 0.9530651598004624);
+		circles.emplace_back(-4.789804175961763, 0.5078584258444607, 0.7505681664915755);
+		circles.emplace_back(1.355353679973632, 2.663154655601829, 1.096149911149405);
+		circles.emplace_back(4.200385396834463, 1.58199360826984, 0.9578968964749947);
+		circles.emplace_back(-0.4052855423651636, -4.274514347780496, 0.8961258467985317);
+		circles.emplace_back(-3.228920151013881, -0.4807892325334251, 0.7305802322225645);
+		circles.emplace_back(3.546562262345105, 4.157496204134077, 0.7850868433481082);
+		circles.emplace_back(-4.947398959193379, 4.158459941390902, 1.096186126605607);
+		circles.emplace_back(-1.391538137104362, 4.905663605313748, 1.072798543679528);
+		circles.emplace_back(0.2990110288374126, -1.316129274200648, 1.552267874521203);
+		circles.emplace_back(-0.5476584541611373, 2.300131188239902, 1.132380653708242);
+		circles.emplace_back(-2.116808893624693, 1.820911637041718, 1.027926841774024);
+		circles.emplace_back(-4.142262560781091, 2.467817149590701, 1.034301617066376);
+		circles.emplace_back(-3.484075933229178, 2.924661559518427, 1.556688597402535);
+		circles.emplace_back(1.519455665256828, -3.470321295317262, 1.150654509128071);
+		circles.emplace_back(-1.746338398661464, -3.202304851729423, 1.027885385486297);
+		circles.emplace_back(-0.6464395229704678, -3.102848574053496, 1.303405904141255);
+		circles.emplace_back(-0.6442409637384117, 4.311207213904709, 0.7148080358048901);
+		circles.emplace_back(-2.717179844621569, -0.989726351108402, 1.380553124868311);
+		circles.emplace_back(-2.635128756519407, 0.9486337448470294, 1.345452724839561);
+	}
+	result_expected = 9.961129020223673;
+
+	timer.reset();
+	result_actual = algorithm(a125, b125, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #125: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a126(-3.55240574805066, -3.084200887009501);
+	Point b126(3.062882447149605, 0.9482606295496225);
+	{
+		circles.emplace_back(2.323527035769075, -2.038779088761657, 0.5313480738783255);
+		circles.emplace_back(2.038515883032233, -3.059390999842435, 1.291391217033379);
+		circles.emplace_back(4.031076792161912, -0.3440389293245971, 0.5357511866139247);
+		circles.emplace_back(-1.16566178156063, -2.167568581644446, 1.184582388005219);
+		circles.emplace_back(-3.025186152663082, -0.06660730810835958, 0.7943726352183148);
+		circles.emplace_back(1.067801683675498, -4.051207646261901, 0.9757734262617305);
+		circles.emplace_back(-3.258330512326211, -1.141135117504746, 0.7505793193122372);
+		circles.emplace_back(-4.636182675603777, 4.664085044059902, 0.6276113465661183);
+		circles.emplace_back(-0.8765476546250284, -2.027619585860521, 1.078218575264327);
+		circles.emplace_back(3.32971143303439, 3.2389568653889, 0.4776331096189096);
+		circles.emplace_back(-0.386442847084254, 2.019627129193395, 1.353164415783249);
+		circles.emplace_back(2.574354282114655, 3.390311996918172, 1.551676853257231);
+		circles.emplace_back(-3.950139798689634, 2.783926643896848, 1.019112819922157);
+		circles.emplace_back(1.330993149895221, 1.689045818056911, 1.028442594944499);
+		circles.emplace_back(-2.96086378628388, -4.930630826856941, 1.499205866106786);
+		circles.emplace_back(-4.767326114233583, 0.9487450192682445, 1.42632655359339);
+		circles.emplace_back(2.631086695473641, 3.184847433585674, 1.026495964382775);
+		circles.emplace_back(-4.787851020228118, 4.816140381153673, 0.4442746031796559);
+		circles.emplace_back(-0.5818960280157626, 3.842499481979758, 1.03786751201842);
+		circles.emplace_back(2.635935379657894, 2.128826293628663, 0.6552376969484612);
+		circles.emplace_back(0.1672544027678668, 2.221255481708795, 0.9517518327804282);
+		circles.emplace_back(1.218186256010085, -2.763122117612511, 0.5611046524485572);
+		circles.emplace_back(0.217945312615484, -0.630704106297344, 1.008461878472008);
+		circles.emplace_back(-2.779609595891088, 4.949407100211829, 1.583935595746152);
+		circles.emplace_back(0.1793355750851333, -2.583736914675683, 0.3034315935568884);
+		circles.emplace_back(-2.172963998746127, 2.857522626873106, 0.7097802445059642);
+		circles.emplace_back(-2.516357807908207, 3.911144325975329, 0.8211480288067832);
+		circles.emplace_back(0.2240941883064806, -2.249997828621417, 1.010544897126965);
+		circles.emplace_back(-1.996161036659032, -4.980287111829966, 0.5906502274097875);
+		circles.emplace_back(-0.05966291064396501, 3.702132722828537, 1.582492344477214);
+		circles.emplace_back(-1.5857995278202, 0.3760924260132015, 1.20198831341695);
+		circles.emplace_back(-0.7289186981506646, 2.096800927538425, 0.9895293983863666);
+		circles.emplace_back(2.993088865187019, -4.089279023464769, 1.817282489896752);
+		circles.emplace_back(-3.089197457302362, 1.409668431151658, 1.191476262477226);
+		circles.emplace_back(-2.396198350470513, 1.026968786027282, 0.7589022004744037);
+	}
+	result_expected = 15.35409469145352;
+
+	timer.reset();
+	result_actual = algorithm(a126, b126, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #126: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a127(-3.519544474314898, 1.090503679588437);
+	Point b127(2.587227237876505, -0.5175442900508642);
+	{
+		circles.emplace_back(0.6838629557751119, 1.701028833631426, 1.291749942139722);
+		circles.emplace_back(-2.07120826235041, -2.877375159878284, 1.435540543007664);
+		circles.emplace_back(-1.832928054500371, 2.477125071454793, 0.968258857470937);
+		circles.emplace_back(-0.6214223313145339, 2.940271811094135, 0.7862079797079786);
+		circles.emplace_back(4.514835921581835, 4.812267741654068, 0.9140832085395231);
+		circles.emplace_back(-3.70362795656547, -2.251144715119153, 0.9427269764943048);
+		circles.emplace_back(-0.1658765436150134, 1.363063903991133, 1.030387664795853);
+		circles.emplace_back(1.896591840777546, -2.512867611367255, 1.158081675204448);
+		circles.emplace_back(-2.641245007980615, 4.31022445904091, 0.8973692515166476);
+		circles.emplace_back(-1.915389040950686, -1.351856307592243, 1.254399797343649);
+		circles.emplace_back(4.22095998423174, 0.3678335598669946, 1.655024660355411);
+		circles.emplace_back(-3.892638070974499, 3.663695270661265, 1.141392805264331);
+		circles.emplace_back(4.522179982159287, -2.978177119512111, 0.5774764331756159);
+		circles.emplace_back(-4.52903188066557, -2.947711281012744, 1.136784895253368);
+		circles.emplace_back(3.254655075725168, 4.854194766376168, 1.038310877629556);
+		circles.emplace_back(0.4725571000017226, -3.088198744226247, 1.512451303075068);
+		circles.emplace_back(-4.548869591671973, -2.380667577963322, 1.104137584124692);
+		circles.emplace_back(4.186615177895874, -3.816548807080835, 1.004801908344962);
+		circles.emplace_back(4.940649850759655, -4.594844516832381, 1.394978707912378);
+		circles.emplace_back(1.512614830862731, 1.194917887914926, 1.825352758285589);
+		circles.emplace_back(2.285070803482085, 4.206135624554008, 0.6674532459815964);
+		circles.emplace_back(-1.711062307003886, 0.7173701212741435, 1.239523648493923);
+		circles.emplace_back(1.449746007565409, 3.685409694444388, 1.393905493314378);
+		circles.emplace_back(-0.281980384606868, 0.8374357339926064, 1.264700580318458);
+		circles.emplace_back(1.394752629566938, -3.235942313913256, 2.017758977389895);
+		circles.emplace_back(1.649207116570324, -4.094063898082823, 0.7960982961812988);
+		circles.emplace_back(1.280015057418495, -0.7959829014725983, 0.5944473708746955);
+		circles.emplace_back(2.923995114397258, -4.041039950679988, 0.5566439313115552);
+		circles.emplace_back(-0.1318096625618637, 0.7048465474508703, 1.402975694625638);
+		circles.emplace_back(2.529309091623873, -2.248086163308471, 0.8230905238771811);
+		circles.emplace_back(-1.522946876939386, -2.978087284136564, 1.184700148622505);
+		circles.emplace_back(-0.08423471124842763, 1.445121441502124, 1.236343781952746);
+		circles.emplace_back(1.043391854036599, 2.341840488370508, 0.9435795005178078);
+	}
+	result_expected = 20.33271652212578;
+
+	timer.reset();
+	result_actual = algorithm(a127, b127, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #127: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a128(-2.254287253599614, -3.156985519453883);
+	Point b128(3.297058524098247, 1.641818398609757);
+	{
+		circles.emplace_back(1.639347856398672, -0.627853365149349, 1.497343321912922);
+		circles.emplace_back(4.101443106774241, -2.431007057894021, 0.8033194836927577);
+		circles.emplace_back(-4.022322345990688, -2.125011968892068, 1.273996040900238);
+		circles.emplace_back(-3.662039099726826, -1.198245247360319, 0.8318998707691208);
+		circles.emplace_back(-3.992238992359489, 4.476488705258816, 0.9631933982251212);
+		circles.emplace_back(0.8822186361066997, 4.886136942077428, 1.3424728525104);
+		circles.emplace_back(-4.139741908293217, -2.91673673549667, 0.6762482179095968);
+		circles.emplace_back(1.100275514181703, 0.2137105376459658, 1.385927191772498);
+		circles.emplace_back(-3.13567124074325, -0.522736229468137, 0.8975156091852113);
+		circles.emplace_back(0.7510668667964637, 0.7258969289250672, 0.2923577445792034);
+		circles.emplace_back(0.4248705809004605, 0.2132486528716981, 1.34290349741932);
+		circles.emplace_back(-1.193673855159432, 1.847640874329954, 1.545144345820881);
+		circles.emplace_back(-4.044686348643154, 3.525426376145333, 0.6217981538502499);
+		circles.emplace_back(-2.752941239159554, -0.8270016522146761, 1.587138582183979);
+		circles.emplace_back(4.674022605177015, -3.822894857730716, 0.9748564228648319);
+		circles.emplace_back(0.1911494531668723, -1.663577959407121, 0.3383931268705055);
+		circles.emplace_back(1.569257553201169, -3.800495627801865, 1.750188249279745);
+		circles.emplace_back(-1.851435310672969, 4.097109173890203, 0.5952849827473983);
+		circles.emplace_back(-2.467656566295773, 4.800952638033777, 0.9601278817513957);
+		circles.emplace_back(0.1522375852800906, 0.2481175470165908, 1.131792973238043);
+		circles.emplace_back(1.744855425786227, 4.003889777231961, 0.8758061145665124);
+		circles.emplace_back(3.340623003896326, -4.028601252939552, 0.9574793275678529);
+		circles.emplace_back(-2.79313295846805, 2.734228677581996, 1.082485468755476);
+		circles.emplace_back(-4.889779400546104, 1.330989499110729, 1.305163870309479);
+		circles.emplace_back(-0.344440087210387, -4.822981806937605, 0.8682079333579167);
+		circles.emplace_back(-3.10856761643663, -3.053680134471506, 0.7424827264854684);
+		circles.emplace_back(-1.109146939124912, -3.992408302146941, 0.9962383880047126);
+		circles.emplace_back(-0.06768773542717099, -4.863634824287146, 1.174129732069559);
+		circles.emplace_back(-2.072410646360368, 2.909306788351387, 1.064341199561022);
+		circles.emplace_back(2.634553944226354, -1.646732927765697, 0.387630058103241);
+		circles.emplace_back(4.736394549254328, -2.849221408832818, 0.6956888598157093);
+		circles.emplace_back(-1.700270373839885, -2.939439255278558, 0.4737866065697744);
+		circles.emplace_back(-2.183393321465701, -4.120457211975008, 0.4069966748123988);
+		circles.emplace_back(0.559549720492214, 2.752698550466448, 1.154850405291654);
+		circles.emplace_back(-0.2623497485183179, -0.788443956989795, 1.471112410235219);
+		circles.emplace_back(-4.176360361743718, 1.474756740499288, 1.172539025289006);
+		circles.emplace_back(-3.843820493202657, 0.7664361759088933, 0.9946419475367292);
+	}
+	result_expected = 16.71096454881414;
+
+	timer.reset();
+	result_actual = algorithm(a128, b128, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #128: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a129(-2.614884703885764, 3.670344607904553);
+	Point b129(2.688421418424696, 0.5833044145256281);
+	{
+		circles.emplace_back(-0.7848021597601473, -2.359466326888651, 1.381397570879199);
+		circles.emplace_back(0.6413899199105799, 3.428548488300294, 1.291897962871007);
+		circles.emplace_back(-0.9569201921112835, -4.322984039317816, 1.177806572732516);
+		circles.emplace_back(-0.732679630164057, 1.244226752314717, 0.6825427033239975);
+		circles.emplace_back(-0.491814052220434, 4.670416831504554, 1.37780220627319);
+		circles.emplace_back(-1.403556365985423, 3.072150212246925, 0.7127562157111242);
+		circles.emplace_back(0.08078537182882428, 4.34265818214044, 0.844109921134077);
+		circles.emplace_back(3.177266211714596, 1.901912281755358, 1.103459063009359);
+		circles.emplace_back(-3.692219459917396, -2.980381224770099, 0.9759428034303709);
+		circles.emplace_back(3.446970887016505, -4.51990321977064, 1.371617534500547);
+		circles.emplace_back(1.179657478351146, -0.3924929932691157, 1.489536556391977);
+		circles.emplace_back(-2.370837780181319, -4.591774919535965, 1.115459125139751);
+		circles.emplace_back(-4.038375688251108, 0.5462446133606136, 1.366816685418598);
+		circles.emplace_back(-3.831662323791534, 0.07347357692196965, 1.341352036898024);
+		circles.emplace_back(0.4869996313937008, -1.784809755627066, 1.550522933504544);
+		circles.emplace_back(-1.669198370072991, -3.539078084286302, 0.2940141478786245);
+		circles.emplace_back(3.128030060324818, 2.445247310679406, 0.9360347664682194);
+		circles.emplace_back(2.727393328677863, -3.559406294953078, 0.6476442226441577);
+		circles.emplace_back(-3.064163762610406, -1.665866544935852, 1.726572712673806);
+		circles.emplace_back(1.384493669029325, -1.115729825105518, 0.8333415746921673);
+		circles.emplace_back(-4.045380626339465, -3.552473995368928, 0.9693913295166566);
+		circles.emplace_back(2.619515799451619, -4.758854622486979, 1.385981515771709);
+		circles.emplace_back(-1.533493085298687, 3.801655287388712, 0.9631408741930499);
+		circles.emplace_back(1.332202872727066, -3.705706347245723, 0.7377954187570139);
+		circles.emplace_back(-4.182166035752743, 1.422736288513988, 0.9817426880588754);
+		circles.emplace_back(3.4360919916071, 4.492687440942973, 0.992801120947115);
+		circles.emplace_back(-0.4728155047632754, -0.7121562189422548, 0.63081719300244);
+		circles.emplace_back(-3.255154208745807, -1.510642406065017, 1.679841932537965);
+		circles.emplace_back(-0.4501181398518384, 1.440616876352578, 0.7602165431948378);
+		circles.emplace_back(-3.795176062267274, -1.377729719970375, 1.072789020999335);
+		circles.emplace_back(-1.586514527443796, 2.191537527833134, 1.323703958862461);
+		circles.emplace_back(1.721449310425669, 4.00029894663021, 0.4058140155626461);
+		circles.emplace_back(-2.725436736363918, -1.949029851239175, 1.199464086373337);
+		circles.emplace_back(0.3469926794059575, 1.143919338937849, 0.6973419695859775);
+	}
+	result_expected = 10.3963230054226;
+
+	timer.reset();
+	result_actual = algorithm(a129, b129, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #129: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a130(-3.632484782021493, -0.6009640377014875);
+	Point b130(3.378866770770401, -2.480527495965362);
+	{
+		circles.emplace_back(-0.7137768738903105, 0.7459255517460406, 0.7846977632725611);
+		circles.emplace_back(3.287162336055189, 0.90443269116804, 1.142121899197809);
+		circles.emplace_back(2.340299624484032, 3.701321233529598, 0.6160478080855682);
+		circles.emplace_back(0.7334507559426129, -0.06250322097912431, 0.9261781874811276);
+		circles.emplace_back(0.3316634730435908, 2.487653556745499, 1.256934994342737);
+		circles.emplace_back(-3.19890107261017, 2.688092917669564, 1.205353421089239);
+		circles.emplace_back(-1.053945634048432, 4.033289307262748, 0.5810328768333419);
+		circles.emplace_back(3.198295945767313, 4.994859367143363, 1.394366952474229);
+		circles.emplace_back(2.931575428228825, 0.7856202241964638, 0.5364183909492567);
+		circles.emplace_back(-2.698849074076861, -2.034925410989672, 1.51290713546332);
+		circles.emplace_back(3.274532796349376, -3.576135297771543, 0.9058659954229369);
+		circles.emplace_back(4.602776116225868, 1.25836270628497, 1.173520203935914);
+		circles.emplace_back(-1.812011145520955, -0.4553508828394115, 1.368607942503877);
+		circles.emplace_back(2.536482859868556, 0.867006944026798, 1.032249752967618);
+		circles.emplace_back(0.588312444742769, -1.174012848641723, 1.30563311020378);
+		circles.emplace_back(-2.005003017839044, 2.813707969617099, 1.008564775506966);
+		circles.emplace_back(4.548922542016953, -4.791767920833081, 0.3104228901909664);
+		circles.emplace_back(1.691229969728738, 0.1364090270362794, 1.459829800925218);
+		circles.emplace_back(-0.06657118210569024, 4.765895309392363, 0.8397167975315823);
+		circles.emplace_back(-1.822851330507547, 0.6245699082501233, 0.6318409466417506);
+		circles.emplace_back(-4.36005501775071, 1.261652687098831, 0.8695955196162686);
+		circles.emplace_back(-4.594034443143755, -4.409560428466648, 1.108590604388155);
+		circles.emplace_back(-2.96608324861154, -3.676016435492784, 1.239796163584105);
+		circles.emplace_back(0.5463372427038848, -2.859677735250443, 1.392868968774565);
+		circles.emplace_back(-1.455542154144496, -3.228866423014551, 0.9610253922408446);
+		circles.emplace_back(2.388856278266758, -3.130583500023931, 0.901432759151794);
+		circles.emplace_back(-2.882748374249786, -3.177051146049052, 1.315527715045027);
+		circles.emplace_back(4.470108828973025, -3.838113031815737, 0.4476811413886025);
+		circles.emplace_back(-2.088751222472638, 0.240839512553066, 0.9328464066376909);
+		circles.emplace_back(-0.6517797685228288, 1.701337702106684, 1.246645329962484);
+		circles.emplace_back(3.470931041520089, -4.927851955872029, 0.9337180982576683);
+		circles.emplace_back(4.941790059674531, -3.701987417880446, 0.4799945045029744);
+		circles.emplace_back(0.02600041916593909, -1.447738779243082, 1.334087534458376);
+		circles.emplace_back(-2.051571176853031, -4.158824172336608, 0.9634895368246361);
+		circles.emplace_back(-2.073641226161271, -2.8098074789159, 1.405121980723925);
+		circles.emplace_back(-0.1366434129886329, 2.558405005838722, 1.785692218109034);
+	}
+	result_expected = 19.7171391370662;
+
+	timer.reset();
+	result_actual = algorithm(a130, b130, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #130: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a131(-3.344384736847132, -0.5326141845434904);
+	Point b131(3.934843746479601, -2.678976496681571);
+	{
+		circles.emplace_back(1.575119064655155, -0.7664764276705682, 0.7082424437860027);
+		circles.emplace_back(4.603996446821839, -3.569881815928966, 1.022412131982855);
+		circles.emplace_back(3.282500288914889, 1.927805163431913, 1.474542281520553);
+		circles.emplace_back(3.805717502254993, 4.343083591666073, 0.6687797194113955);
+		circles.emplace_back(2.714648547116667, -4.194465570617467, 1.50185638226103);
+		circles.emplace_back(2.254821944516152, -1.234177451115102, 0.7192133764969184);
+		circles.emplace_back(-3.087867840658873, 2.417845276650041, 0.6815636414801701);
+		circles.emplace_back(-0.3347891778685153, 0.5838315957225859, 0.9692464279243722);
+		circles.emplace_back(1.472113265190274, -1.791196849662811, 1.234662569942884);
+		circles.emplace_back(2.844392552506179, 4.784142256248742, 0.4108106927247718);
+		circles.emplace_back(0.4629015293903649, 1.256052756216377, 1.33165923373308);
+		circles.emplace_back(1.350066696759313, 0.3118160949088633, 1.642307806783356);
+		circles.emplace_back(2.625386381987482, -1.240394294727594, 0.8726670426083728);
+		circles.emplace_back(-3.104329307097942, 3.29323009820655, 1.454381980677135);
+		circles.emplace_back(3.74284140067175, -3.555121461395174, 0.6547601893311366);
+		circles.emplace_back(4.640014560427517, -0.02252470469102263, 0.7229341445723548);
+		circles.emplace_back(3.854173517320305, 2.136568154674023, 1.452532045054249);
+		circles.emplace_back(0.8694326947443187, 2.052938484121114, 0.7057341155828908);
+		circles.emplace_back(1.817941267509013, -2.846733017358929, 0.9824395654490217);
+		circles.emplace_back(-2.597957404796034, -3.91532746842131, 1.693778248527087);
+		circles.emplace_back(-0.4413149482570589, 1.575063995551318, 1.127569449762814);
+		circles.emplace_back(-4.866455879528075, -3.076370533090085, 0.4410009685205296);
+		circles.emplace_back(2.370081127155572, 4.182471407111734, 1.86020398249384);
+		circles.emplace_back(1.07758661499247, -1.48695066338405, 0.7293470213422552);
+		circles.emplace_back(-1.338850201573223, -1.295139354187995, 0.9024941748706623);
+		circles.emplace_back(-1.218924999702722, 3.310266539920121, 1.558047215011902);
+		circles.emplace_back(1.262217026669532, -1.299815049860626, 0.7981650108238681);
+		circles.emplace_back(4.865879674907774, 2.303914113435894, 1.313713863515295);
+		circles.emplace_back(1.606547425035387, -2.334890321362764, 0.3179822896374389);
+		circles.emplace_back(-1.586741183418781, 0.08697518380358815, 0.9190830811159685);
+		circles.emplace_back(-3.478464640211314, 2.595765178557485, 0.4762027449673041);
+		circles.emplace_back(-1.284104569349438, 2.395349557045847, 1.510379513190128);
+		circles.emplace_back(3.750059625599533, 1.934180806856602, 0.7819088074145838);
+		circles.emplace_back(4.324795238208026, -4.310427836608142, 0.993865027022548);
+		circles.emplace_back(-4.571924086194485, -3.605947552714497, 1.775496565341018);
+		circles.emplace_back(-2.681259957607836, -2.68816038267687, 0.9941401661140844);
+		circles.emplace_back(2.528996604960412, 1.063563574571162, 1.112857368146069);
+		circles.emplace_back(4.396323666442186, -4.334717991296202, 1.558298087469302);
+	}
+	result_expected = 15.32841282183361;
+
+	timer.reset();
+	result_actual = algorithm(a131, b131, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #131: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a132(-3.451501812320203, 1.81704837270081);
+	Point b132(2.867061154451221, 1.60371440090239);
+	{
+		circles.emplace_back(-2.040649096015841, -0.8650970621965826, 0.7930898189777508);
+		circles.emplace_back(-0.9563512704335153, -3.93972183810547, 1.134343034471385);
+		circles.emplace_back(-4.339362655300647, -3.662730667274445, 1.502115304698236);
+		circles.emplace_back(-2.907038785051554, -0.4064400144852698, 0.8279695786302909);
+		circles.emplace_back(3.890202955808491, -3.711269383784384, 1.251016788766719);
+		circles.emplace_back(-1.762119808699936, 3.99149204371497, 1.095800441759638);
+		circles.emplace_back(-2.556592293549329, -4.811561338137835, 0.9505040754796936);
+		circles.emplace_back(1.704052512068301, 4.924282671418041, 1.101826377748512);
+		circles.emplace_back(0.3995309001766145, -3.052400404121727, 0.9661413144553079);
+		circles.emplace_back(-0.4332627332769334, 1.60360500914976, 0.6842942268354818);
+		circles.emplace_back(-1.633699100930244, 2.299390484113246, 1.11649115041364);
+		circles.emplace_back(-4.003169133793563, 0.7522854185663164, 0.8327405307209119);
+		circles.emplace_back(-4.55053853103891, -1.510374469216913, 1.164236778230406);
+		circles.emplace_back(1.321040077600628, 0.1452199253253639, 0.9959058849839493);
+		circles.emplace_back(-3.703504160512239, 4.360183507669717, 0.9063121767016127);
+		circles.emplace_back(4.106652226764709, -4.237953966949135, 0.7668923334917053);
+		circles.emplace_back(-4.815276677254587, 0.1489268825389445, 0.8243442319566383);
+		circles.emplace_back(-2.569429462309927, -0.3805589978583157, 1.079230796988122);
+		circles.emplace_back(-3.161172915715724, -2.439688134472817, 0.7854213989572599);
+		circles.emplace_back(-2.339748672675341, -4.277988562826067, 1.339517715550028);
+		circles.emplace_back(1.221465410199016, 2.36010734224692, 1.322851987020113);
+		circles.emplace_back(4.210898524615914, 3.035582776647061, 1.206459772097878);
+		circles.emplace_back(0.6929625640623271, -2.334390587639064, 0.6146610928000882);
+		circles.emplace_back(-4.401260267477483, 0.6952910288237035, 1.290032751648687);
+		circles.emplace_back(-3.567830922547728, -0.0105429976247251, 1.251598641672172);
+		circles.emplace_back(-0.5655731982551515, -4.436777152586728, 0.7755152784986421);
+		circles.emplace_back(-4.39957493217662, 0.7006227714009583, 0.8838919359492138);
+		circles.emplace_back(0.5435726349242032, -0.5035562091507018, 0.7629003610229119);
+		circles.emplace_back(-4.835846072528511, 1.640372278634459, 1.294374545873143);
+		circles.emplace_back(0.9131546900607646, -2.973901641089469, 0.8401173612801358);
+		circles.emplace_back(-3.681042522657663, 3.923953131306916, 1.502459316817112);
+		circles.emplace_back(-3.607015598099679, -2.668140849564224, 0.8661141941091045);
+		circles.emplace_back(-1.170822570566088, 2.220494581852108, 0.8961967036360874);
+		circles.emplace_back(1.061731751542538, 1.784066793043166, 1.055870580603369);
+		circles.emplace_back(-3.163607127498835, -2.438768411520869, 1.109174706763588);
+		circles.emplace_back(4.660802653525025, 0.1655871677212417, 0.7507326411781832);
+		circles.emplace_back(-2.161098339129239, -3.456925533246249, 1.188058212888427);
+		circles.emplace_back(-0.5257275956682861, 3.5176289989613, 1.392432421981357);
+	}
+	result_expected = 9.078745531024694;
+
+	timer.reset();
+	result_actual = algorithm(a132, b132, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #132: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a133(-2.11256270064041, 1.644011335447431);
+	Point b133(2.606317525263876, -2.450352599844337);
+	{
+		circles.emplace_back(3.64913230529055, 1.91063970560208, 0.6679773861775175);
+		circles.emplace_back(-2.796570749487728, -0.861000728327781, 0.8680258146254345);
+		circles.emplace_back(-2.450047165621072, -4.769004329573363, 1.465343501535244);
+		circles.emplace_back(2.814081620890647, -3.971160671208054, 0.9704477945109828);
+		circles.emplace_back(-1.350170860532671, 4.125068916473538, 1.117621685587801);
+		circles.emplace_back(-1.14505406236276, -1.612324819434434, 1.001736809755675);
+		circles.emplace_back(-0.3411665628664196, -0.0004142173565924168, 0.5609022490447386);
+		circles.emplace_back(-1.783089770469815, 4.090683723334223, 1.184929401264526);
+		circles.emplace_back(2.531534901354462, -3.378717501182109, 0.7545904773054644);
+		circles.emplace_back(-2.553647675085813, 2.445787705946714, 0.457629466545768);
+		circles.emplace_back(-0.650469686370343, 1.666275055613369, 1.10110209339764);
+		circles.emplace_back(3.935930652078241, -1.623650097753853, 1.023601314076222);
+		circles.emplace_back(-0.968583223875612, 2.812804586719722, 1.142682503233664);
+		circles.emplace_back(-3.365790855605155, -0.06076792953535914, 1.428999293898232);
+		circles.emplace_back(-3.129786571953446, 3.74800049001351, 1.017522378475405);
+		circles.emplace_back(4.324244691524655, -3.712373462039977, 1.208365134778433);
+		circles.emplace_back(-0.2815560554154217, 3.498736203182489, 1.063366662082262);
+		circles.emplace_back(-2.3761115106754, 3.764648044016212, 1.029627683921717);
+		circles.emplace_back(-0.5575383058749139, 4.666650414001197, 1.027461535925977);
+		circles.emplace_back(-2.451357741374522, -4.760302442591637, 0.8576860598521306);
+		circles.emplace_back(-3.004724762868136, 2.673914690967649, 1.058903346932493);
+		circles.emplace_back(2.904139251913875, -4.443375875707716, 0.9581829993287101);
+		circles.emplace_back(3.009376919362694, -4.225745771545917, 1.4256598303793);
+		circles.emplace_back(0.2977386186830699, 0.7308064331300557, 1.386428913217969);
+		circles.emplace_back(-4.858914713840932, -0.3404170111753047, 0.8768310693791136);
+		circles.emplace_back(-3.021991702262312, 0.5330163449980319, 0.2851733912015333);
+		circles.emplace_back(-1.408539486583322, -3.05140531854704, 0.9509618320269509);
+		circles.emplace_back(2.06528804032132, -3.292330976109952, 0.899276456539519);
+		circles.emplace_back(3.919224024284631, -3.841107415501028, 1.101048819324933);
+		circles.emplace_back(1.531509661581367, 0.2733524166978896, 0.6506440976867451);
+		circles.emplace_back(4.062357305083424, 0.1917536440305412, 0.7990614629117772);
+		circles.emplace_back(-3.991918743122369, 1.579399213660508, 1.100648541119881);
+		circles.emplace_back(-1.689920860808343, -0.2236958057619631, 1.499151077284478);
+		circles.emplace_back(-2.70169977331534, -4.276518241968006, 1.337899476313032);
+		circles.emplace_back(-4.833880772348493, -3.40277160750702, 1.438527858699672);
+		circles.emplace_back(-1.564396296162158, 3.415679123718292, 1.320443381299265);
+		circles.emplace_back(-0.5378250847570598, -2.548775786999613, 1.259477410442196);
+	}
+	result_expected = -1;
+
+	timer.reset();
+	result_actual = algorithm(a133, b133, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #133: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a134(-2.18751174537465, -3.741052536293864);
+	Point b134(3.272299939300865, 0.7129339817911386);
+	{
+		circles.emplace_back(-0.4030463821254671, -4.69216174678877, 0.9854215034050866);
+		circles.emplace_back(2.300450981128961, -4.415477144066244, 1.507243467471562);
+		circles.emplace_back(-0.9839926124550402, -0.1255924976430833, 1.182818181277253);
+		circles.emplace_back(1.620065032038838, -0.4270883020944893, 1.334941489133052);
+		circles.emplace_back(-2.718618393409997, 2.184575602877885, 0.8742066302569582);
+		circles.emplace_back(1.986463528592139, -2.915379873011261, 1.021701001538895);
+		circles.emplace_back(4.427187105175108, 3.92722754040733, 0.7841371566290035);
+		circles.emplace_back(3.025049755815417, 2.782084986101836, 0.6706974719418213);
+		circles.emplace_back(1.930922295432538, 0.9050632384605706, 1.331280933250673);
+		circles.emplace_back(-1.855971373151988, 1.848692481871694, 1.100765270716511);
+		circles.emplace_back(-1.02825520792976, -3.969503825064749, 0.8953562578419223);
+		circles.emplace_back(-1.272363641764969, -0.5804127943702042, 1.065701183932833);
+		circles.emplace_back(1.711744300555438, -4.29575317306444, 0.232270993781276);
+		circles.emplace_back(0.9204161888919771, 4.826443439815193, 0.5992839318001643);
+		circles.emplace_back(1.455519336741418, 2.010054339189082, 1.387230971013196);
+		circles.emplace_back(-4.723141684662551, 0.6182062602601945, 1.345613146177493);
+		circles.emplace_back(2.797095605637878, -1.109305245336145, 1.127760455221869);
+		circles.emplace_back(2.115027888212353, 3.064245644491166, 0.6366155146388337);
+		circles.emplace_back(-0.8912279759533703, 3.969819874037057, 0.4128579379292205);
+		circles.emplace_back(3.448692348320037, -2.585262304637581, 1.134635792835615);
+		circles.emplace_back(2.677173132542521, 4.431019097100943, 0.9776375797344371);
+		circles.emplace_back(2.250213872175664, 2.671719205100089, 1.308700377424247);
+		circles.emplace_back(-0.6226923386566341, -4.884470293764025, 1.526515716291033);
+		circles.emplace_back(-4.489210008177906, 3.739388922695071, 0.9658656580606475);
+		circles.emplace_back(4.773534482810646, 0.6089301663450897, 1.197363665211014);
+		circles.emplace_back(-4.239578985143453, -4.715825922321528, 0.9714526158990338);
+		circles.emplace_back(-3.605315040331334, -1.849853231105953, 0.4365112764528021);
+		circles.emplace_back(-0.7236233376897871, 4.895526340696961, 0.4349565986776724);
+		circles.emplace_back(0.1865244680084288, 1.339089653920382, 1.79934368066024);
+		circles.emplace_back(-0.9186443057842553, -0.1992747443728149, 0.5567101943539455);
+		circles.emplace_back(-0.1079451735131443, -4.812115805689245, 0.9296542402124032);
+		circles.emplace_back(-4.544467276427895, 2.724978032056242, 0.6983754033455625);
+		circles.emplace_back(-1.976691575255245, 4.786299157422036, 1.414214175078087);
+		circles.emplace_back(-3.496768504846841, -4.922125681769103, 0.7475611769827082);
+		circles.emplace_back(-1.02116673020646, 4.590648987796158, 1.394858668162487);
+	}
+	result_expected = 14.4175573860998;
+
+	timer.reset();
+	result_actual = algorithm(a134, b134, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #134: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a135(-3.242637894582003, 0.3069411385804415);
+	Point b135(3.047851604875177, -1.940266033634543);
+	{
+		circles.emplace_back(-4.884532152209431, 1.560286919120699, 1.376351375714876);
+		circles.emplace_back(-4.750886315014213, -1.083777670282871, 0.9597086305497213);
+		circles.emplace_back(-3.722609125543386, 4.059526019264013, 0.445796246570535);
+		circles.emplace_back(3.311587919015437, -4.647309316787869, 0.8382582260062917);
+		circles.emplace_back(-0.3788226866163313, -1.025703081395477, 1.718204948701896);
+		circles.emplace_back(-4.57240961259231, 0.4645151714794338, 0.8884973370237276);
+		circles.emplace_back(4.743470016401261, -4.983898426871747, 1.549505468015559);
+		circles.emplace_back(4.761357039678842, 0.2725797123275697, 0.7544497336959466);
+		circles.emplace_back(-3.488464744295925, -1.459793460089713, 0.9613372585503384);
+		circles.emplace_back(-2.340471732895821, -2.893019637558609, 1.160380775644444);
+		circles.emplace_back(-0.643633792642504, -3.262820409145206, 0.9901215836638584);
+		circles.emplace_back(-1.385875765699893, -2.695391539018601, 1.390031933714636);
+		circles.emplace_back(-2.165808684658259, 4.98707148944959, 1.175219776458107);
+		circles.emplace_back(-3.491289450321347, -2.313218747731298, 1.752048335061408);
+		circles.emplace_back(-4.743639656808227, -4.075996179599315, 1.192926506954245);
+		circles.emplace_back(2.097493789624423, -3.344289443921298, 0.9701561962487175);
+		circles.emplace_back(4.243242416996509, 0.3611553623341024, 1.413672727881931);
+		circles.emplace_back(-1.378946083132178, -2.615694010164589, 0.4914557691896334);
+		circles.emplace_back(-2.511998710688204, -3.291268639732152, 0.934673632751219);
+		circles.emplace_back(-4.335295867640525, 3.524064321536571, 0.8310543458210304);
+		circles.emplace_back(-4.112773879896849, -2.689180227462202, 1.623568638018332);
+		circles.emplace_back(-1.962763092014939, -1.363053394015878, 0.9779832350322976);
+		circles.emplace_back(3.514190448913723, -4.659200098831207, 1.042107219877653);
+		circles.emplace_back(3.903515234123915, -2.769045948516577, 1.045044793304987);
+		circles.emplace_back(-1.297354164998978, 4.800693893339485, 1.168562168045901);
+		circles.emplace_back(3.338318134192377, 2.879832207690924, 0.3369122487260028);
+		circles.emplace_back(2.606139581184834, 0.8842088398523629, 1.18536376573611);
+		circles.emplace_back(2.123243131209165, 1.79929788922891, 0.9778284564381464);
+		circles.emplace_back(0.8016715361736715, 3.268265018705279, 0.8672134397784248);
+		circles.emplace_back(1.21479699620977, -3.766541753429919, 1.205677721905522);
+		circles.emplace_back(-3.404830091167241, -4.951143122743815, 1.279522239905782);
+		circles.emplace_back(-0.003254215698689222, -3.791513724718243, 1.734625130682252);
+		circles.emplace_back(4.501590577419847, -2.555337229277939, 1.175777365663089);
+		circles.emplace_back(-0.4361430532298982, -2.219882078934461, 0.5129703947110101);
+		circles.emplace_back(-0.3606493142433465, -0.4767515021376312, 1.435123813454993);
+		circles.emplace_back(-4.455415427219123, -1.461014973465353, 1.125596506497823);
+	}
+	result_expected = 7.530251881611333;
+
+	timer.reset();
+	result_actual = algorithm(a135, b135, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #135: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a136(-2.62992040393874, -0.4034100752323866);
+	Point b136(2.971208186354488, 1.492669576779008);
+	{
+		circles.emplace_back(-4.97668948257342, -0.1019411697052419, 0.7456140317255631);
+		circles.emplace_back(-4.57223299657926, -0.1033066515810788, 1.248830587859265);
+		circles.emplace_back(3.603689770679921, -4.94792117504403, 0.8171205452876165);
+		circles.emplace_back(-0.793700001668185, 2.451286574359983, 0.8106768712168559);
+		circles.emplace_back(-2.074844150338322, 2.948026845697314, 0.7379671780625358);
+		circles.emplace_back(-4.924270713236183, -0.6775647145695984, 1.439849240588956);
+		circles.emplace_back(0.4567777109332383, 4.213528053369373, 1.335923853307031);
+		circles.emplace_back(-1.142492743674666, -4.82510028174147, 0.68143362889532);
+		circles.emplace_back(0.9692066186107695, 0.4793425719253719, 1.026495770434849);
+		circles.emplace_back(-2.422953632194549, 2.161148313898593, 0.6453495833324268);
+		circles.emplace_back(2.54161047982052, 4.707550478633493, 0.4664049546932801);
+		circles.emplace_back(3.735677504446357, 3.857000621501356, 1.509614525199868);
+		circles.emplace_back(-0.3951092972420156, -0.812143546063453, 0.5352258181897923);
+		circles.emplace_back(-1.103794754017144, 1.841037378180772, 0.715324802068062);
+		circles.emplace_back(2.111107867676765, 3.715548941399902, 0.7621951246401295);
+		circles.emplace_back(-1.560192147735506, -2.06177415093407, 0.7674353182548657);
+		circles.emplace_back(-1.681369652505964, -3.546416417229921, 1.307557738269679);
+		circles.emplace_back(-1.89133730949834, 3.130861904937774, 1.098052610387094);
+		circles.emplace_back(3.702466033864766, 0.1984142116270959, 0.9338018990820273);
+		circles.emplace_back(-2.880688591394573, -3.174347763415426, 1.909131609485484);
+		circles.emplace_back(-2.264617362525314, -1.890370000619441, 1.1969353916822);
+		circles.emplace_back(3.899010948371142, -3.320426575373858, 1.026387613010593);
+		circles.emplace_back(-1.609109218697995, -4.477948902640492, 0.6643211623420938);
+		circles.emplace_back(-4.756589757744223, 4.323863333556801, 0.7327584278071299);
+		circles.emplace_back(-2.206617144402117, -4.388721131253988, 0.9091456264955923);
+		circles.emplace_back(0.5337361874990165, 4.180969048757106, 1.109712582384236);
+		circles.emplace_back(0.2336893533356488, 0.1797905541025102, 0.729835096350871);
+		circles.emplace_back(4.530033154878765, -3.579488035757095, 0.8831654458073899);
+		circles.emplace_back(-3.023791268933564, 4.427158266771585, 1.309561017272062);
+		circles.emplace_back(-4.805169019382447, -0.05160445580258965, 1.589927317365073);
+		circles.emplace_back(2.327205722685903, 4.421495704445988, 1.324840625398792);
+		circles.emplace_back(-0.1829900196753442, -2.58212509797886, 1.159313863213174);
+		circles.emplace_back(-1.283482958097011, -4.407501507084817, 1.04395063885022);
+		circles.emplace_back(2.237476177979261, 2.415160646196455, 1.170190200186334);
+		circles.emplace_back(-3.525462208781391, 2.690615693572909, 1.167914821044542);
+		circles.emplace_back(1.232090240810066, -0.2208138746209443, 0.9315834457753226);
+		circles.emplace_back(-4.246354543138295, 3.435499363113195, 1.179802824300714);
+		circles.emplace_back(1.271974791307002, -0.1863945857621729, 0.6085993898799642);
+	}
+	result_expected = 6.181869232196096;
+
+	timer.reset();
+	result_actual = algorithm(a136, b136, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #136: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a137(-3.953093289863318, -0.2115188669413328);
+	Point b137(2.958702882286161, 2.109614500775933);
+	{
+		circles.emplace_back(-0.04710691282525659, 4.255196230951697, 1.19612266740296);
+		circles.emplace_back(-2.175354973878711, -4.832504328805953, 1.031347679975443);
+		circles.emplace_back(-0.01558567630127072, -2.353167205583304, 0.5802731515141204);
+		circles.emplace_back(-2.21820494858548, -3.235403543803841, 1.044370208843611);
+		circles.emplace_back(-1.774852985981852, 3.976159302983433, 1.404504018300213);
+		circles.emplace_back(1.070459138136357, -2.129852164071053, 0.6227155513362959);
+		circles.emplace_back(3.834731348324567, 3.827532937284559, 1.087545222020708);
+		circles.emplace_back(3.182258249726146, -1.49829771136865, 1.852794001833536);
+		circles.emplace_back(-3.577288442756981, 4.910590227227658, 1.311165502178483);
+		circles.emplace_back(-3.036864541936666, -3.750986463855952, 1.058721802872606);
+		circles.emplace_back(-4.255196156445891, 1.249140670988709, 1.135480142035521);
+		circles.emplace_back(4.378540592733771, -4.039769389200956, 0.4948513739509507);
+		circles.emplace_back(-4.702235099393874, -2.86560746608302, 1.267227290873416);
+		circles.emplace_back(-1.963769167196006, 4.907501561101526, 1.148114013276063);
+		circles.emplace_back(-2.297269648406655, 4.314302506390959, 1.337634527147747);
+		circles.emplace_back(-4.185317845549434, 3.100334096234292, 1.741494863363914);
+		circles.emplace_back(4.651670425664634, 2.458958283532411, 1.478097423282452);
+		circles.emplace_back(2.306534361559898, 0.4674547701142728, 1.674727056338452);
+		circles.emplace_back(3.795885320287198, -0.7445943984203041, 1.131929877330549);
+		circles.emplace_back(0.4094973136670887, -0.7960879453457892, 1.247922771400772);
+		circles.emplace_back(3.032551275100559, 3.400722409132868, 0.5051070576766505);
+		circles.emplace_back(-1.030120977666229, -3.610936601180583, 0.6352717834291979);
+		circles.emplace_back(-4.150794066954404, -3.157270036172122, 0.6154427831294015);
+		circles.emplace_back(-3.915489937644452, 3.259755761828274, 0.8559056853642687);
+		circles.emplace_back(-0.06944842869415879, 1.106541252229363, 1.290208509215154);
+		circles.emplace_back(-4.227911841589957, -1.632024447899312, 0.8818238447653129);
+		circles.emplace_back(-2.257482453715056, -0.8505649887956679, 1.127229903987609);
+		circles.emplace_back(-4.626687488052994, 1.754576193634421, 1.352386810095049);
+		circles.emplace_back(-1.641643212642521, -1.955895510036498, 0.214990387740545);
+		circles.emplace_back(4.63788767112419, -3.609047948848456, 1.415415398892947);
+		circles.emplace_back(-0.5781701835803688, 2.821221554186195, 1.129126748605631);
+		circles.emplace_back(4.263497327920049, 2.074673234019428, 0.8992291547590866);
+		circles.emplace_back(2.691861952189356, -1.11256766365841, 1.145745743508451);
+		circles.emplace_back(-0.8810560894198716, -2.800579804461449, 0.1501104108290747);
+		circles.emplace_back(-3.588098667096347, -2.409440616611391, 1.082824580348097);
+	}
+	result_expected = 16.74955101277525;
+
+	timer.reset();
+	result_actual = algorithm(a137, b137, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #137: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a138(-2.232928532641381, 2.193043382838368);
+	Point b138(2.870440253522247, 3.446857953444123);
+	{
+		circles.emplace_back(-0.6888697319664061, 0.9118399978615344, 1.125125980027951);
+		circles.emplace_back(1.497980060521513, -0.3749921848066151, 1.882718862663023);
+		circles.emplace_back(-3.341817569453269, 0.2325790119357407, 1.547948090289719);
+		circles.emplace_back(-2.713154575321823, 3.979780601803213, 0.9893294560024514);
+		circles.emplace_back(3.757804168853909, -4.468486693222076, 1.649244780722074);
+		circles.emplace_back(2.871503725182265, 2.656319022644311, 0.6863278047414496);
+		circles.emplace_back(0.003827151376754045, 4.388894939329475, 1.005472487374209);
+		circles.emplace_back(4.612319732550532, 0.935192524921149, 0.9632678729249163);
+		circles.emplace_back(4.777520101051778, 3.46087233396247, 0.6004440031247213);
+		circles.emplace_back(-4.805746756028384, -0.9056300320662558, 1.739910818613134);
+		circles.emplace_back(-2.352971045766026, -0.4188234708271921, 1.792145323590375);
+		circles.emplace_back(-3.998513722326607, -0.6254651886411011, 0.9077638606308027);
+		circles.emplace_back(3.048433668445796, 1.599939011503011, 1.455210005980916);
+		circles.emplace_back(-4.755310814362019, 2.625834660138935, 0.7970931587507948);
+		circles.emplace_back(-3.542616518680006, -3.435304441954941, 0.8051735896850004);
+		circles.emplace_back(-4.000169408973306, 0.9525894443504512, 1.035873717884533);
+		circles.emplace_back(-4.103651728946716, 4.479291264433414, 1.144069254701026);
+		circles.emplace_back(3.327737629879266, -2.172000634018332, 1.226456792256795);
+		circles.emplace_back(-4.286733067128807, -2.979574350174516, 0.9600703845033421);
+		circles.emplace_back(-2.757039607968181, 0.2996121230535209, 0.861907089385204);
+		circles.emplace_back(2.016384720336646, -4.974134757649153, 1.2216491201194);
+		circles.emplace_back(-0.1013602199964225, -3.142673245165497, 0.5174345785519108);
+		circles.emplace_back(3.766744395252317, 2.984304113779217, 0.4353671163553372);
+		circles.emplace_back(4.553296754602343, -1.18694479810074, 1.102150395954959);
+		circles.emplace_back(2.303429685998708, 4.662256424780935, 0.9108685262268409);
+		circles.emplace_back(2.414934055414051, -0.446894948836416, 1.162850656197406);
+		circles.emplace_back(-1.047474720980972, -0.3875983250327408, 0.6623546275077388);
+		circles.emplace_back(0.118488899897784, -2.100425295066088, 1.111174245667644);
+		circles.emplace_back(-2.507442708592862, 0.02202326199039817, 0.6367905547609553);
+		circles.emplace_back(2.763044310268015, 0.3812655271030962, 0.6651976149762049);
+		circles.emplace_back(0.2482660138048232, -1.353657089639455, 0.4187778235180303);
+		circles.emplace_back(-0.4732672986574471, -4.840209137182683, 1.015381297026761);
+		circles.emplace_back(-2.472519769798964, -4.918430449906737, 1.800445443741046);
+		circles.emplace_back(-3.228995373938233, -4.498069507535547, 0.8645070584723725);
+		circles.emplace_back(-4.617537872400135, 0.3898001345805824, 0.689657240989618);
+		circles.emplace_back(-3.362912789452821, 3.6423549358733, 1.330991727230139);
+		circles.emplace_back(2.567724373657256, -0.6799491704441607, 0.9884309695800766);
+	}
+	result_expected = 5.255133104408729;
+
+	timer.reset();
+	result_actual = algorithm(a138, b138, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #138: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a139(-2.084238029550761, -1.072226835414767);
+	Point b139(3.431438801344484, 3.956643739715219);
+	{
+		circles.emplace_back(0.6985250278376043, 4.728987331036478, 1.601511918590404);
+		circles.emplace_back(-2.110649028327316, 0.7885178434662521, 1.620138168591075);
+		circles.emplace_back(-2.651417918968946, 1.025913127232343, 1.419511597347446);
+		circles.emplace_back(4.56641596974805, -0.555259941611439, 1.03485651218798);
+		circles.emplace_back(2.26997539633885, -1.9640828599222, 1.490250548790209);
+		circles.emplace_back(1.587334114592522, 1.578265477437526, 0.7799174840794876);
+		circles.emplace_back(-2.542392208706588, 3.543969688471407, 0.5858086023246869);
+		circles.emplace_back(-2.547876706812531, 0.644348340574652, 0.8832875492284074);
+		circles.emplace_back(4.112330956850201, -0.9653737512417138, 1.103880277159624);
+		circles.emplace_back(0.2474809135310352, -3.281937211286277, 0.7774462015600875);
+		circles.emplace_back(2.956278410274535, 0.04837637534365058, 1.827060415013693);
+		circles.emplace_back(4.031304901000112, 1.838113574776798, 1.374321230524219);
+		circles.emplace_back(3.75489097321406, -0.04769983934238553, 0.8930455860449);
+		circles.emplace_back(-0.1750296843238175, 2.539584350306541, 0.9565803147153928);
+		circles.emplace_back(-4.710739783477038, 2.941739072557539, 0.6751222938066348);
+		circles.emplace_back(4.017221869435161, -0.2661871514283121, 1.411709619895555);
+		circles.emplace_back(-2.28902077069506, 4.845616694074124, 1.460625761258416);
+		circles.emplace_back(2.418396032880992, 4.440011673141271, 0.4841435444774106);
+		circles.emplace_back(-1.150675069075078, -1.802188290748745, 0.8635753525188192);
+		circles.emplace_back(-1.892937424127012, -2.323259839322418, 0.8497180734062567);
+		circles.emplace_back(-1.635185105260462, 2.939329228829592, 1.438747372548096);
+		circles.emplace_back(-4.198980864603072, 3.426801536697894, 0.9141811388777569);
+		circles.emplace_back(0.1861504022963345, 1.36211029952392, 1.250188174447976);
+		circles.emplace_back(-0.08183384547010064, -0.33664166694507, 1.095891823829152);
+		circles.emplace_back(3.179276196751744, -0.7548368093557656, 0.6751001915661617);
+		circles.emplace_back(1.520133286248893, 2.718027785886079, 0.9096761816414073);
+		circles.emplace_back(1.227756154257804, -1.682706198189408, 0.5816506990930065);
+		circles.emplace_back(4.702622105833143, 3.533437682781368, 0.8615808829898014);
+		circles.emplace_back(-4.397117157932371, 1.958056285511702, 0.8940577973378822);
+		circles.emplace_back(-0.5387262743897736, -0.6768081220798194, 0.5304768382804468);
+		circles.emplace_back(3.419907682109624, 0.1696387282572687, 0.837800296372734);
+		circles.emplace_back(-0.629536344204098, -0.3885865560732782, 0.789613381610252);
+		circles.emplace_back(4.863497188780457, -4.932757515925914, 0.5294778692303225);
+		circles.emplace_back(2.314770005177706, 0.2920021791942418, 1.54680953968782);
+		circles.emplace_back(-2.529010500293225, -1.805892495904118, 0.4272150283446535);
+		circles.emplace_back(4.758954865392298, 1.984461939428002, 1.493492346652783);
+		circles.emplace_back(-3.163755831774324, -0.3803202440030873, 1.076057167421095);
+	}
+	result_expected = 17.90874953590826;
+
+	timer.reset();
+	result_actual = algorithm(a139, b139, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #139: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a140(-2.217094297986478, 3.683836402371526);
+	Point b140(2.820742295589298, 2.96908431686461);
+	{
+		circles.emplace_back(4.934803356882185, 3.173149956855923, 0.9253413751954213);
+		circles.emplace_back(-1.772752364631742, -3.840157494414598, 0.6940508206142112);
+		circles.emplace_back(-2.325428251642734, 0.5040966835804284, 1.661727216769941);
+		circles.emplace_back(-3.284476704429835, 2.52147558843717, 0.973837225860916);
+		circles.emplace_back(3.734872804488987, 0.8819993981160223, 0.7727955943206325);
+		circles.emplace_back(-0.02379668643698096, -0.8621635031886399, 0.325469799595885);
+		circles.emplace_back(1.717295132111758, 2.146406092215329, 1.338977534067817);
+		circles.emplace_back(3.905848239082843, 1.825083883013576, 1.198050532280467);
+		circles.emplace_back(-1.529640632215887, -0.4580878256820142, 0.7003740813815966);
+		circles.emplace_back(1.211202146951109, 4.250533587764949, 1.087892822991125);
+		circles.emplace_back(-1.898493214976043, 0.9697298682294786, 0.4896273601567372);
+		circles.emplace_back(2.130855598952621, -1.656862271483988, 0.5797791736433282);
+		circles.emplace_back(-2.915973828639835, 2.417557153385133, 0.5004543646005913);
+		circles.emplace_back(3.42338104499504, -4.335416376125067, 0.7126371310325339);
+		circles.emplace_back(-1.864269140642136, -1.293580329511315, 1.189529499574564);
+		circles.emplace_back(-4.609490896109492, 0.138568936381489, 0.9364691592985763);
+		circles.emplace_back(-4.02669016038999, 4.611860036384314, 0.6567754399729893);
+		circles.emplace_back(-0.2495925617404282, 0.509115916211158, 0.6067739001708105);
+		circles.emplace_back(-4.188353202771395, 0.9970816574059427, 0.7224032804137095);
+		circles.emplace_back(0.9280909015797079, 4.69447452807799, 0.4515503673115745);
+		circles.emplace_back(2.637616193387657, 1.892683531623334, 0.8976076493738219);
+		circles.emplace_back(-3.537817292381078, 2.867376052308828, 1.324062457424589);
+		circles.emplace_back(-1.618476610165089, -4.743490202818066, 0.8757665840676053);
+		circles.emplace_back(-1.256842466536909, -1.672049739863724, 1.66269269476179);
+		circles.emplace_back(-3.807268214877695, 2.840860120486468, 1.039531908254139);
+		circles.emplace_back(-0.1224998501129448, -2.104619618039578, 0.6252436074661091);
+		circles.emplace_back(0.06898868130519986, 4.340400767978281, 1.089938042662106);
+		circles.emplace_back(-1.594193077180535, 2.118588837329298, 1.348443571687676);
+		circles.emplace_back(0.1006803498603404, -3.166040044743568, 0.6565868652192876);
+		circles.emplace_back(-2.869798720348626, -1.600784554611892, 1.265249896910973);
+		circles.emplace_back(-2.678284484427422, -3.783015182707459, 1.330583425774239);
+		circles.emplace_back(-0.8224720158614218, -4.118131415452808, 1.230315363430418);
+		circles.emplace_back(-3.642044772859663, -3.401218906510621, 1.261702007497661);
+		circles.emplace_back(-1.610365186352283, -1.552901479881257, 1.09519536041189);
+		circles.emplace_back(-2.517924166750163, 0.2597503713332117, 0.5657542146509513);
+		circles.emplace_back(3.940643982496113, 0.0917608686722815, 0.7770212104776874);
+		circles.emplace_back(1.070470532868057, -1.521316517610103, 1.784810453909449);
+		circles.emplace_back(1.483459405135363, 4.149406917858869, 0.7149512042524293);
+		circles.emplace_back(-4.436736281495541, -3.901237605605274, 1.019293363927863);
+	}
+	result_expected = 7.167463712625491;
+
+	timer.reset();
+	result_actual = algorithm(a140, b140, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #140: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a141(-2.574769928585738, 2.352045016363263);
+	Point b141(3.740999852772802, -3.611550142988563);
+	{
+		circles.emplace_back(-3.544357216451317, 3.60273108119145, 1.28015531396959);
+		circles.emplace_back(2.629854141268879, -2.639709871727973, 1.154474032553844);
+		circles.emplace_back(1.02572452975437, -1.18161280406639, 0.4556918361457065);
+		circles.emplace_back(-0.2206195774488151, -2.188657990191132, 0.8082191044231877);
+		circles.emplace_back(-3.379711846355349, -3.511278943624347, 0.7444744915002957);
+		circles.emplace_back(0.3724338510073721, -0.1703112875111401, 0.9581492696655913);
+		circles.emplace_back(0.2908677118830383, 3.790028777439147, 1.250089614023454);
+		circles.emplace_back(-2.288676656316966, 3.223045056220144, 0.7099061496322974);
+		circles.emplace_back(4.263800994958729, -1.707988565322012, 1.811706795380451);
+		circles.emplace_back(1.865893027279526, -1.983002473134547, 0.6832197579322382);
+		circles.emplace_back(-4.133966334629804, -4.472225240897387, 1.030354138207622);
+		circles.emplace_back(2.701895956415683, 4.753428043331951, 0.9860917737474665);
+		circles.emplace_back(0.3253740794025362, -3.397413843777031, 1.33802493030671);
+		circles.emplace_back(-0.55285140639171, 4.970517314504832, 0.613267755578272);
+		circles.emplace_back(1.208382386248559, 3.661213268060237, 0.9191616381751373);
+		circles.emplace_back(-1.361272230278701, 1.25641762977466, 0.5735637251054868);
+		circles.emplace_back(-1.057328751776367, 3.357887046877295, 0.7649615558097138);
+		circles.emplace_back(-1.943809406366199, 0.8585286769084632, 1.141042238357477);
+		circles.emplace_back(-2.852260724175721, -4.984098940622061, 1.510284382221289);
+		circles.emplace_back(1.726266529876739, 1.26390373101458, 1.345150248869322);
+		circles.emplace_back(3.119552021380514, -0.3244225098751485, 1.208215438597835);
+		circles.emplace_back(-0.9663103870116174, 4.193657308351249, 0.9522357550216838);
+		circles.emplace_back(-3.471070874948055, -2.540200937073678, 0.6760491735534742);
+		circles.emplace_back(-1.859192482661456, -0.174660871271044, 1.232852411246858);
+		circles.emplace_back(2.952389956917614, 2.385524848941714, 1.036106042400934);
+		circles.emplace_back(-0.9446770488284528, -0.4779170197434723, 0.8434409702895209);
+		circles.emplace_back(0.006453848909586668, 4.667676680255681, 1.31288178388495);
+		circles.emplace_back(-2.647515239659697, -0.5514983623288572, 0.7720515553141012);
+		circles.emplace_back(-3.609680456575006, -4.984907724428922, 1.121161895315163);
+		circles.emplace_back(1.429013970773667, -3.509015168529004, 1.134312324528582);
+		circles.emplace_back(-4.797931856010109, -3.550894556101412, 0.9054453546414151);
+		circles.emplace_back(1.671723632607609, -1.599524926859885, 0.4787548056570813);
+		circles.emplace_back(-3.748626143205911, 4.620697752106935, 1.370816554990597);
+		circles.emplace_back(3.895849895197898, -2.136471292469651, 1.199315766408108);
+		circles.emplace_back(-3.118596563581377, 1.350397600326687, 0.9453059092396869);
+		circles.emplace_back(-4.634122808929533, 4.671264782082289, 1.098173846746795);
+		circles.emplace_back(1.411070700269192, -1.769376459997147, 0.8858681290643289);
+		circles.emplace_back(-2.099421329330653, 0.403782760258764, 1.753641413873993);
+	}
+	result_expected = 13.52289866829791;
+
+	timer.reset();
+	result_actual = algorithm(a141, b141, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #141: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a142(-3.420895788352937, -0.2417915146797895);
+	Point b142(2.781014764215797, -3.626167690381408);
+	{
+		circles.emplace_back(0.642994639929384, -0.8713789074681699, 1.468680337467231);
+		circles.emplace_back(1.21955074602738, 0.1074672560207546, 0.9702474974794313);
+		circles.emplace_back(4.964816037099808, -3.999663020949811, 0.525607659225352);
+		circles.emplace_back(1.587772697675973, -4.999204950872809, 0.9658220197772607);
+		circles.emplace_back(-3.12455320963636, 3.235715033952147, 0.9392341995844616);
+		circles.emplace_back(-1.450614721979946, -0.07935167523100972, 1.192377217742614);
+		circles.emplace_back(3.836663037072867, -3.010629459749907, 0.8712976330192759);
+		circles.emplace_back(2.744544160086662, 2.380745091941208, 1.216603315784596);
+		circles.emplace_back(-2.259202788118273, -2.725023792590946, 0.7988773450488225);
+		circles.emplace_back(-4.957069416996092, -2.292339012492448, 1.146690582181327);
+		circles.emplace_back(4.260980661492795, -2.327897313516587, 1.317091804672964);
+		circles.emplace_back(-3.2031434844248, -3.877910042647272, 1.226757963723503);
+		circles.emplace_back(1.38931350549683, -3.712363278027624, 1.275496498332359);
+		circles.emplace_back(0.4027078370563686, -3.388086340855807, 1.27686894882936);
+		circles.emplace_back(0.8105161529965699, -4.384973554406315, 1.169219494401477);
+		circles.emplace_back(4.742244107183069, -0.4535802244208753, 0.4785907801473513);
+		circles.emplace_back(0.2908030175603926, 0.3350284765474498, 1.250872416864149);
+		circles.emplace_back(0.6317242863588035, -2.764611344318837, 0.8717977266060188);
+		circles.emplace_back(2.870540276635438, 1.203349379356951, 1.594185079983435);
+		circles.emplace_back(1.444699147250503, 4.157834576908499, 1.009366922290064);
+		circles.emplace_back(-0.4003749950788915, -2.026736524421722, 1.02459409374278);
+		circles.emplace_back(-0.3934092377312481, -0.02046537352725863, 1.148146744188852);
+		circles.emplace_back(4.599467453081161, 4.559207463171333, 1.418068170710467);
+		circles.emplace_back(-1.060374940279871, 0.6761900172568858, 1.101107919984497);
+		circles.emplace_back(2.889643574599177, 1.414977132808417, 0.9240798515034839);
+		circles.emplace_back(0.5731330323033035, -1.830534178297967, 0.998805548925884);
+		circles.emplace_back(0.600372941698879, 2.916827092412859, 0.6741901217261329);
+		circles.emplace_back(1.315369613002986, -2.685941911768168, 0.347891562920995);
+		circles.emplace_back(-1.285063426475972, 1.187584714498371, 1.433858191757463);
+		circles.emplace_back(3.859360662754625, -0.843929925467819, 0.5401237566256896);
+		circles.emplace_back(-1.948183549102396, -2.742564149666578, 1.413446904043667);
+		circles.emplace_back(2.196283254306763, 2.507071916479617, 0.6078179541276767);
+		circles.emplace_back(3.175519884098321, -1.360714065376669, 1.209387768409215);
+		circles.emplace_back(0.2703287242911756, -3.0946035659872, 1.338991899252869);
+		circles.emplace_back(-1.25554317375645, -2.283318799454719, 0.710866708192043);
+		circles.emplace_back(-0.2740638260729611, 3.621244237292558, 0.7681974449427798);
+		circles.emplace_back(1.352991324383765, -3.498445621225983, 1.094805728807114);
+	}
+	result_expected = 15.56190057754999;
+
+	timer.reset();
+	result_actual = algorithm(a142, b142, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #142: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a143(-2.688337973784655, -1.242139590904117);
+	Point b143(2.883762074168772, 1.254184463992715);
+	{
+		circles.emplace_back(4.651500077452511, 3.361512015108019, 1.17255769057665);
+		circles.emplace_back(2.56163457641378, 4.094429041724652, 1.529338563489728);
+		circles.emplace_back(-2.029102544765919, -4.221527560148388, 1.481404778151773);
+		circles.emplace_back(4.188330320175737, -2.219375350978225, 0.8659963894868269);
+		circles.emplace_back(-4.724199844058603, 4.10720371408388, 0.1945214130682871);
+		circles.emplace_back(-0.5310369725339115, -0.02964250976219773, 0.9778161506867036);
+		circles.emplace_back(-3.148570156190544, 0.6106843077577651, 1.133402768732048);
+		circles.emplace_back(2.758692263159901, -2.039810281712562, 1.324745849403553);
+		circles.emplace_back(1.464858471881598, 0.7665665005333722, 0.732184458640404);
+		circles.emplace_back(2.466738384682685, -3.836690357420594, 1.207751008286141);
+		circles.emplace_back(2.048771937843412, 4.665216191206127, 0.9079102874035015);
+		circles.emplace_back(3.598601112607867, 3.292294486891478, 1.355890578473918);
+		circles.emplace_back(0.1529142423532903, -3.615011458750814, 0.9057906797388567);
+		circles.emplace_back(0.9619876951910555, 4.95273734210059, 1.458025437849574);
+		circles.emplace_back(-0.6272721965797246, 0.52821732359007, 0.5211245049955323);
+		circles.emplace_back(2.775165860075504, -2.267367003951222, 0.7895479520549997);
+		circles.emplace_back(-1.323464142624289, 0.397338813636452, 1.04221323246602);
+		circles.emplace_back(-0.7573462999425828, 3.920727230142802, 0.5320788771612569);
+		circles.emplace_back(4.285713837016374, -1.452658476773649, 1.529933807603084);
+		circles.emplace_back(-0.8684317977167666, 1.399718599859625, 1.16790249964688);
+		circles.emplace_back(1.472630186472088, -4.185015794355422, 1.146935126069002);
+		circles.emplace_back(2.42347066057846, -4.549496143590659, 0.8633580059977248);
+		circles.emplace_back(-4.490580374840647, 0.5549572990275919, 0.8610694550210609);
+		circles.emplace_back(-0.3177149943076074, 2.43060466600582, 0.9638360497308894);
+		circles.emplace_back(0.7331168162636459, 2.103448223788291, 1.51881744035054);
+		circles.emplace_back(0.3197937621735036, -1.414255460258573, 0.6589910818496718);
+		circles.emplace_back(-4.602851027157158, 4.740770335774869, 1.344962691771798);
+		circles.emplace_back(2.090590156149119, -2.032835192512721, 0.8857568335952236);
+		circles.emplace_back(2.978065360803157, 3.580469356384128, 1.157737083523534);
+		circles.emplace_back(-0.8743983530439436, 2.755831351969391, 0.4636134002590552);
+		circles.emplace_back(2.357530656736344, 3.924598668236285, 0.8215661603258922);
+		circles.emplace_back(-2.248248129617423, 2.30851344531402, 0.6397223915671929);
+	}
+	result_expected = 7.413239089702344;
+
+	timer.reset();
+	result_actual = algorithm(a143, b143, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #143: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a144(-2.902293513994664, -0.05963992886245251);
+	Point b144(2.732374907936901, -2.072265988215804);
+	{
+		circles.emplace_back(3.293499832507223, -0.641569287981838, 0.5267207019263878);
+		circles.emplace_back(-0.2602409175597131, 1.833673387300223, 0.2983270969940349);
+		circles.emplace_back(-4.669136155862361, 4.78347183438018, 1.126111710746772);
+		circles.emplace_back(-1.975743405055255, -4.57667131209746, 1.078513264632784);
+		circles.emplace_back(-3.954999207053334, 3.267222980502993, 1.343945030705072);
+		circles.emplace_back(0.9059160412289202, 0.446057494264096, 1.060721811163239);
+		circles.emplace_back(1.522888995241374, -0.1133334706537426, 1.069206146639772);
+		circles.emplace_back(0.06914739729836583, 2.816628383006901, 0.8153334898641332);
+		circles.emplace_back(1.6053357697092, 2.956656983587891, 1.0343060557032);
+		circles.emplace_back(-2.868592066224664, 2.84057893557474, 1.357062655012123);
+		circles.emplace_back(3.603675130289048, 4.270208750385791, 1.075017409329303);
+		circles.emplace_back(-3.363214104901999, -2.449396627489477, 0.7776305254315957);
+		circles.emplace_back(-4.590529149863869, 2.790627183858305, 1.40038074797485);
+		circles.emplace_back(3.92232587793842, 1.81338696507737, 1.573967622849159);
+		circles.emplace_back(-3.684904009569436, -2.298755391966552, 1.570798602071591);
+		circles.emplace_back(-0.3387048724107444, 1.466164567973465, 0.9667451897403224);
+		circles.emplace_back(4.234153737779707, 4.980241789016873, 1.525308670126833);
+		circles.emplace_back(-0.4131912789307535, 3.519624366890639, 0.8288400788558646);
+		circles.emplace_back(-0.5244518560357392, 1.648504075128585, 0.715238222409971);
+		circles.emplace_back(3.817200355697423, -2.415128315333277, 0.6728297941153869);
+		circles.emplace_back(1.53360711177811, 2.287680173758417, 1.328590316162445);
+		circles.emplace_back(4.091244211886078, 2.897011439781636, 1.668294050055556);
+		circles.emplace_back(0.2590037207119167, 2.093580283690244, 1.165098345768638);
+		circles.emplace_back(0.02131573623046279, -1.633230948355049, 0.9834088888252154);
+		circles.emplace_back(3.990688922349364, 2.741773731540889, 1.435134206782095);
+		circles.emplace_back(-1.186093103606254, -3.302322428207844, 0.7268137465463951);
+		circles.emplace_back(-3.939482017885894, 1.96271046763286, 1.181127290776931);
+		circles.emplace_back(-2.564592680428177, -2.072222603019327, 1.37985051444266);
+		circles.emplace_back(0.6210069195367396, 4.874413523357362, 0.6007655306486412);
+		circles.emplace_back(0.6594141270034015, -3.988671719562262, 1.652426956710406);
+		circles.emplace_back(-4.882306817453355, 0.4042895673774183, 1.071752563281916);
+		circles.emplace_back(-3.574872876051813, 3.91393011668697, 1.368397895270027);
+		circles.emplace_back(3.74022718751803, -3.167174935806543, 1.309907670016401);
+		circles.emplace_back(4.296478133182973, 3.414578300435096, 0.8892342618899419);
+		circles.emplace_back(-4.924620173405856, 0.6595149240456522, 0.7823199972277507);
+		circles.emplace_back(4.495906324591488, 3.877140472177416, 1.168072399334051);
+		circles.emplace_back(-2.193380200769752, 2.530253555160016, 1.234488982963376);
+		circles.emplace_back(-2.528724365402013, 3.475141369272023, 0.942517634970136);
+		circles.emplace_back(0.09258498670533299, 4.501090662088245, 0.5832820443203672);
+	}
+	result_expected = 6.0636386170723;
+
+	timer.reset();
+	result_actual = algorithm(a144, b144, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #144: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a145(-3.990104823838919, 2.192369000986218);
+	Point b145(3.866599550005049, 2.995772609487176);
+	{
+		circles.emplace_back(-0.619407759513706, 0.5284788343124092, 1.169195033493452);
+		circles.emplace_back(-0.9945125435478985, -1.94251251174137, 0.8877818064065649);
+		circles.emplace_back(1.541517910081893, 4.763863587286323, 1.043320775195025);
+		circles.emplace_back(-1.541639531496912, -1.259303928818554, 1.287841332727112);
+		circles.emplace_back(-0.5763450614176691, 0.2918706531636417, 0.4685629171086475);
+		circles.emplace_back(0.6949530052952468, 3.965123456437141, 1.342120649595745);
+		circles.emplace_back(0.4344224114902318, 0.3287612996064126, 0.9745945289498195);
+		circles.emplace_back(-0.4143770621158183, 0.1928733685053885, 0.8997201500693336);
+		circles.emplace_back(-0.2426194190047681, 2.909803714137524, 1.011234811949544);
+		circles.emplace_back(3.551104075741023, -3.286959386896342, 0.8598220047773792);
+		circles.emplace_back(0.424061615485698, -2.989549322519451, 1.189746629982255);
+		circles.emplace_back(-2.181672605220228, -2.225606122519821, 1.185938437678851);
+		circles.emplace_back(0.880612360779196, -0.8969969232566655, 0.3376807936234399);
+		circles.emplace_back(-2.619717207271606, 4.002421323675662, 0.3891388836549595);
+		circles.emplace_back(-1.07623916817829, 3.447099102195352, 0.629645026824437);
+		circles.emplace_back(-2.487051284406334, -0.9739680564962327, 0.8622628638753667);
+		circles.emplace_back(-2.10766309639439, 0.252212721388787, 0.7593052333919331);
+		circles.emplace_back(4.229660748969764, -4.967825605999678, 1.178961352375336);
+		circles.emplace_back(-0.2689535799436271, -3.466061225626618, 1.050543867959641);
+		circles.emplace_back(-0.07561598205938935, 1.72835378209129, 0.9391828447813168);
+		circles.emplace_back(-1.257583310361952, -1.236814216244966, 0.7555049036396667);
+		circles.emplace_back(3.42019798932597, -4.326504382770509, 1.683931277622469);
+		circles.emplace_back(-1.73919991357252, -1.971508676651865, 0.8417470760410651);
+		circles.emplace_back(2.44789602002129, -0.1131750992499292, 0.6542713841656222);
+		circles.emplace_back(-1.130958774592727, 1.146518539171666, 1.017406770843081);
+		circles.emplace_back(3.981945745181292, -4.187602929305285, 1.170143010211177);
+		circles.emplace_back(-0.1161180692724884, -1.285613833460957, 1.26963910961058);
+		circles.emplace_back(-2.392849850002676, -0.1463637291453779, 0.9910693507874384);
+		circles.emplace_back(4.410396965686232, -2.750171863008291, 0.4851604760391637);
+		circles.emplace_back(2.929192918818444, 3.547705162782222, 1.03080500618089);
+		circles.emplace_back(1.058722243178636, 1.061272618826479, 0.6699579123174771);
+		circles.emplace_back(-2.274154594633728, -1.226250750478357, 1.368868193239905);
+		circles.emplace_back(1.178055985365063, 4.07977408496663, 1.475660502794199);
+		circles.emplace_back(2.812956317793578, -4.067972570192069, 1.471237385389395);
+		circles.emplace_back(-2.056617948692292, -3.68167424807325, 0.7601850496372208);
+		circles.emplace_back(1.57958340132609, -2.348576516378671, 1.347573032672517);
+		circles.emplace_back(-3.011685360688716, 0.9431880828924477, 1.37258042760659);
+		circles.emplace_back(2.175582416821271, -3.021153996232897, 0.5939280330901965);
+	}
+	result_expected = 10.68640434446772;
+
+	timer.reset();
+	result_actual = algorithm(a145, b145, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #145: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a146(-3.290292907040566, -3.629297463223338);
+	Point b146(3.342219272162765, 0.8808199409395456);
+	{
+		circles.emplace_back(0.2360580093227327, -3.322136455681175, 0.81590114349965);
+		circles.emplace_back(3.940193506423384, -3.965913795400411, 1.171545615862124);
+		circles.emplace_back(-0.7400335487909615, -1.491797517519444, 0.8679623480187728);
+		circles.emplace_back(1.427845165599138, 4.070944485720247, 1.093585536233149);
+		circles.emplace_back(0.8180053322575986, -4.425355119165033, 1.073612123937346);
+		circles.emplace_back(-2.063968495931476, 3.762350443284959, 1.441050836327486);
+		circles.emplace_back(-3.405598953831941, 3.98774626897648, 0.7467827410669997);
+		circles.emplace_back(-3.189517769496888, 3.803395682480186, 1.203216655715369);
+		circles.emplace_back(1.521380131598562, -0.6941963150165975, 0.8031403921777382);
+		circles.emplace_back(3.723925764206797, -3.744686872232705, 1.026632713968866);
+		circles.emplace_back(-2.239240456838161, 3.363278221804649, 0.7518694794969633);
+		circles.emplace_back(-2.160161070059985, -3.402070889715105, 1.143463078117929);
+		circles.emplace_back(-3.278879581484944, 1.435826460365206, 1.483071525231935);
+		circles.emplace_back(-3.235046023037285, 2.367015357594937, 0.9493590111611411);
+		circles.emplace_back(0.006561435293406248, 0.4133275081403553, 1.19352772955317);
+		circles.emplace_back(3.110347141046077, -1.911056770477444, 0.6295709563186391);
+		circles.emplace_back(-1.310878398362547, 2.539011111948639, 0.4675976369762793);
+		circles.emplace_back(2.805151718202978, -0.8726137061603367, 0.5630603992147371);
+		circles.emplace_back(4.886806074064225, -0.1217389362864196, 0.9274873095797375);
+		circles.emplace_back(1.849907368887216, 4.302911085542291, 0.8201145376777276);
+		circles.emplace_back(-2.291723878588527, 0.486139643471688, 0.6968963763443753);
+		circles.emplace_back(4.488337903749198, -0.3143746103160083, 0.6078689986141398);
+		circles.emplace_back(2.766324293334037, -4.451238831970841, 0.987980050756596);
+		circles.emplace_back(-1.012211700435728, 2.834013893734664, 0.7727258731378241);
+		circles.emplace_back(4.119055445771664, -1.844042900484055, 0.8063617824809626);
+		circles.emplace_back(3.811711065936834, 4.429352020379156, 0.7708417795365676);
+		circles.emplace_back(-4.250215126667172, -2.738963996525854, 0.7775848603108897);
+		circles.emplace_back(4.899464033078402, -4.123437784146518, 0.3569860373856499);
+		circles.emplace_back(-2.447637643199414, 3.911540599074215, 1.373005325137638);
+		circles.emplace_back(1.202105504926294, -1.555633747484535, 0.9884612199151888);
+		circles.emplace_back(4.694072294514626, -3.069235782604665, 0.6358176510082557);
+		circles.emplace_back(1.831596151459962, -3.607655616942793, 1.540493055037223);
+		circles.emplace_back(-2.68998863408342, 1.156872438732535, 1.842987762601115);
+		circles.emplace_back(0.8201323891989887, -0.8298791642300785, 0.835048081097193);
+		circles.emplace_back(0.4130642977543175, -0.301302766893059, 1.281246739788912);
+	}
+	result_expected = 15.21031756719893;
+
+	timer.reset();
+	result_actual = algorithm(a146, b146, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #146: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a147(-3.073309309314936, -3.665443612262607);
+	Point b147(2.745946911629289, 1.179162779822946);
+	{
+		circles.emplace_back(-3.514803780708462, 1.903966928366572, 1.624220747337676);
+		circles.emplace_back(2.564609518740326, 2.971223990898579, 1.478377320128493);
+		circles.emplace_back(3.393938622903079, 3.292031802702695, 0.8959695224883034);
+		circles.emplace_back(-1.093803073745221, -4.553277699742466, 1.395850411592983);
+		circles.emplace_back(1.92827999824658, -0.2068179775960743, 0.9010200128657743);
+		circles.emplace_back(-4.075061094481498, 1.362124879378825, 1.290283418749459);
+		circles.emplace_back(-0.06852988852187991, 0.1611791527830064, 1.049640469602309);
+		circles.emplace_back(3.481280484702438, -2.215838802512735, 1.594950397522189);
+		circles.emplace_back(3.571529819164425, -2.450131860096008, 1.495567886414938);
+		circles.emplace_back(0.8133157039992511, -4.874952256213874, 1.682375739631243);
+		circles.emplace_back(1.078750228043646, 0.6558043346740305, 1.002915731840767);
+		circles.emplace_back(1.969184840563685, 4.316285967361182, 1.160939807887189);
+		circles.emplace_back(-1.184118886012584, 2.130768161732703, 1.158507614512928);
+		circles.emplace_back(-4.317599318455905, -1.391726473812014, 1.351842544949613);
+		circles.emplace_back(4.83674714108929, -3.519054462667555, 0.8215626327553763);
+		circles.emplace_back(-3.234937989618629, -1.863459919113666, 1.340450854110531);
+		circles.emplace_back(1.028421230148524, 2.83567174570635, 0.4363633600296453);
+		circles.emplace_back(-3.109788994770497, 1.718609945382923, 1.031608226685785);
+		circles.emplace_back(1.017034796532243, 4.743184468243271, 1.460362755157985);
+		circles.emplace_back(1.374264287296683, 2.584138743113726, 1.106761042098515);
+		circles.emplace_back(-0.26103236945346, -0.4338149982504547, 1.425243351166136);
+		circles.emplace_back(0.6227450375445187, -2.30139427119866, 1.657168940803967);
+		circles.emplace_back(1.897230648901314, 1.602680238429457, 0.8809934118995443);
+		circles.emplace_back(3.597194312606007, -1.837859612423927, 1.299753747018985);
+		circles.emplace_back(-0.1915873889811337, -1.724632873665541, 0.6680928298505022);
+		circles.emplace_back(3.544960778672248, -1.369739344809204, 1.379761745943688);
+		circles.emplace_back(-0.9833443560637534, 4.49454007903114, 0.8806749761337413);
+		circles.emplace_back(0.4327868320979178, 2.980643853079528, 1.064218807662837);
+		circles.emplace_back(-0.9840318304486573, -2.220029446762055, 1.274741651047952);
+		circles.emplace_back(-2.056922174524516, 0.07114518200978637, 1.134650037414394);
+		circles.emplace_back(0.2307775779627264, 4.676426763180643, 1.777656721160747);
+		circles.emplace_back(4.278459867928177, 1.149122368078679, 0.9842153194127604);
+		circles.emplace_back(0.8069687406532466, -3.834529749583453, 0.4057299663545564);
+		circles.emplace_back(4.125700418371707, 3.030718804802746, 0.8007793089142069);
+		circles.emplace_back(1.511748207267374, 4.91288477787748, 1.533226097770966);
+		circles.emplace_back(2.704284640494734, 2.321101285051554, 0.7609891147119924);
+		circles.emplace_back(-2.119482320267707, -0.9534382331185043, 0.7160948450909927);
+		circles.emplace_back(0.6179092382080853, -0.5572578334249556, 0.4586751017486676);
+	}
+	result_expected = 16.85503826382715;
+
+	timer.reset();
+	result_actual = algorithm(a147, b147, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #147: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a148(-2.88650682149455, 3.587108196690679);
+	Point b148(3.378286199178547, 1.497769052162766);
+	{
+		circles.emplace_back(-4.554835895542055, -1.011125759687275, 0.7307243019575252);
+		circles.emplace_back(0.8371885516680777, 0.05447749746963382, 0.683537468756549);
+		circles.emplace_back(-0.1300096255727112, -3.164178046863526, 1.010411356319673);
+		circles.emplace_back(4.329094134736806, -4.727858717087656, 0.7340097971027717);
+		circles.emplace_back(-4.735219462309033, -4.395508950110525, 1.210756917879917);
+		circles.emplace_back(1.593199989292771, 4.845303844194859, 1.344094655173831);
+		circles.emplace_back(2.465086213778704, -2.070877484511584, 1.463846828532405);
+		circles.emplace_back(4.445027236361057, -3.320566473994404, 1.235016988753341);
+		circles.emplace_back(-2.749221252743155, -2.161127084400505, 0.3998463731491938);
+		circles.emplace_back(3.517726811114699, 4.200223244260997, 1.459887224505655);
+		circles.emplace_back(1.74096955684945, -3.520940791349858, 1.657742085610516);
+		circles.emplace_back(-0.7243173266761005, -2.166955473367125, 0.747629416338168);
+		circles.emplace_back(0.904592105653137, -0.2587219304405153, 1.086717710108496);
+		circles.emplace_back(-4.579612032976002, -4.180745419580489, 0.9723213790683075);
+		circles.emplace_back(-4.839233413804322, 0.7394114439375699, 1.300444591161795);
+		circles.emplace_back(-3.97595665184781, 4.03488373151049, 1.025559114082716);
+		circles.emplace_back(-3.335837835911661, -0.4197511984966695, 0.951840203278698);
+		circles.emplace_back(-4.324454551097006, 2.504574328195304, 0.606762519176118);
+		circles.emplace_back(4.585415374021977, 4.107925307471305, 0.9745594687061384);
+		circles.emplace_back(-0.9084978024475276, 1.674735953565687, 0.6883315622573718);
+		circles.emplace_back(-2.744742988143116, -2.999406119342893, 1.127131949202157);
+		circles.emplace_back(1.781630462501198, -2.025274459738284, 0.7467417861102148);
+		circles.emplace_back(0.1933436165563762, -4.484282142948359, 0.9137439352693035);
+		circles.emplace_back(-4.786639760714024, -0.4965452686883509, 1.164535198896192);
+		circles.emplace_back(2.538883385714144, -0.9329102723859251, 1.079687893786468);
+		circles.emplace_back(-2.755311650689691, 2.581170580815524, 0.8892172925872728);
+		circles.emplace_back(3.989990118425339, -4.577849830966443, 1.426962672476657);
+		circles.emplace_back(0.1372933690436184, 2.152249438222498, 0.6708131190156563);
+		circles.emplace_back(3.792292529251426, -2.617599663790315, 1.103906297148205);
+		circles.emplace_back(2.973642258439213, -2.635312390048057, 1.277765040728263);
+		circles.emplace_back(-3.655329972971231, -2.897330864798278, 0.5295791351469233);
+		circles.emplace_back(1.532287907321006, 1.835566142108291, 1.098471961333416);
+		circles.emplace_back(-1.638920197729021, 3.466715945396572, 1.156388635956682);
+		circles.emplace_back(-4.625224431511015, -0.1108891819603741, 0.9605745275272056);
+		circles.emplace_back(3.992283816915005, -2.082881990354508, 1.490657797385938);
+		circles.emplace_back(-2.184455103706568, -0.8249377855099738, 1.929582982487045);
+		circles.emplace_back(0.6198780401609838, 4.586610461119562, 1.217987943277694);
+		circles.emplace_back(-1.667066940572113, 0.2899144100956619, 1.570124037819914);
+		circles.emplace_back(2.937370024155825, 0.2460157056339085, 0.6558523361803963);
+		circles.emplace_back(-2.415146853309125, -0.9178253100253642, 1.154450318752788);
+	}
+	result_expected = 7.798509042585216;
+
+	timer.reset();
+	result_actual = algorithm(a148, b148, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #148: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a149(-3.035828932654113, -2.223505897447467);
+	Point b149(2.41686183726415, -1.974423101171851);
+	{
+		circles.emplace_back(4.9177280603908, 1.266940834466368, 1.008912488282658);
+		circles.emplace_back(4.725113718304783, 4.698001730721444, 0.7789805314270779);
+		circles.emplace_back(2.157650857698172, -0.6560689653269947, 1.198311250773259);
+		circles.emplace_back(1.408356439787894, 3.275542536284775, 0.7823687026044354);
+		circles.emplace_back(0.6085656187497079, 0.4467449919320643, 0.6964362070197239);
+		circles.emplace_back(-0.4527791938744485, -0.6729732011444867, 1.108329849387519);
+		circles.emplace_back(0.5410768347792327, -3.791762951295823, 1.03918036215473);
+		circles.emplace_back(-3.55718970997259, -1.716585422400385, 0.3014620445435867);
+		circles.emplace_back(-4.544597698841244, -4.2402309528552, 1.050784871564247);
+		circles.emplace_back(-0.744805762078613, 3.648151855450124, 1.451121919113211);
+		circles.emplace_back(1.191747568082064, -4.721250913571566, 1.12875687230844);
+		circles.emplace_back(-3.662554349284619, 1.284852118697017, 0.9545239513507112);
+		circles.emplace_back(-2.514556425157934, 0.1139901042915881, 0.8641968604410066);
+		circles.emplace_back(-4.228477773722261, -1.855629973579198, 0.970144321094267);
+		circles.emplace_back(-2.957468938548118, -3.628787498455495, 1.285206512664445);
+		circles.emplace_back(-2.988247617613524, 2.635857013519853, 1.381619759253226);
+		circles.emplace_back(-4.604930898640305, 3.665233778301626, 1.306946288258769);
+		circles.emplace_back(-0.1965932711027563, 0.9362324210815132, 1.107761509600095);
+		circles.emplace_back(-3.427211150992662, -0.2116430993191898, 1.166248084721155);
+		circles.emplace_back(4.52430420788005, 0.4660974978469312, 1.53942170755472);
+		circles.emplace_back(-1.251192654017359, 0.05618786672130227, 1.048961658054031);
+		circles.emplace_back(-1.453379129525274, 2.28746336651966, 1.746254168148152);
+		circles.emplace_back(4.231959979515523, -2.177418309729546, 1.521924456139095);
+		circles.emplace_back(2.884038009215146, 2.049757798667997, 1.063403762853704);
+		circles.emplace_back(3.236903937067837, -3.14536522841081, 1.396092951134778);
+		circles.emplace_back(1.026085114572197, -1.924580608028919, 0.7273382524726912);
+		circles.emplace_back(4.515488750766963, -0.3233896265737712, 1.210459494334645);
+		circles.emplace_back(-3.782998125534505, -1.015018506441265, 0.868903630762361);
+		circles.emplace_back(3.260662185493857, -4.336108036804944, 0.7777387209935114);
+		circles.emplace_back(-1.869403806049377, 4.489613596815616, 0.586575937573798);
+		circles.emplace_back(4.976071894634515, -2.880591379944235, 1.012926955125295);
+		circles.emplace_back(-1.538693106267601, -3.905464557465166, 1.253852225304581);
+		circles.emplace_back(0.4396707401610911, 0.6157539668492973, 1.637692952784709);
+		circles.emplace_back(3.689395308028907, 2.156300947535783, 1.221649203565903);
+		circles.emplace_back(0.8811377105303109, -2.840693464968354, 0.7885687047382817);
+		circles.emplace_back(3.09511806583032, 4.780181332025677, 0.4247694939607754);
+		circles.emplace_back(-1.701382210012525, -2.317050055135041, 0.3392588530434295);
+		circles.emplace_back(3.366850044112653, -3.373518500011414, 0.6650721355574205);
+		circles.emplace_back(0.2772568096406758, -3.100205475930125, 1.07392674756702);
+	}
+	result_expected = -1;
+
+	timer.reset();
+	result_actual = algorithm(a149, b149, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #149: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a150(-2.51671803323552, 1.306160302832723);
+	Point b150(3.872718328144401, -1.910841261968017);
+	{
+		circles.emplace_back(-0.59711858863011, 0.8816498727537692, 0.9144599069142714);
+		circles.emplace_back(-0.9623450762592256, -4.038921960163862, 1.309956113318913);
+		circles.emplace_back(-4.395270135719329, 0.5982775730080903, 1.141067454521544);
+		circles.emplace_back(-4.040691351983696, -3.121777025517076, 1.035691378475167);
+		circles.emplace_back(-4.754315258469433, -4.206502896267921, 0.6686573601095005);
+		circles.emplace_back(-0.03539699362590909, -0.3765689278952777, 1.081035692361183);
+		circles.emplace_back(-3.091022211592644, 3.958665558602661, 1.38980286361184);
+		circles.emplace_back(2.992635925766081, 1.721491201315075, 0.8500789821380749);
+		circles.emplace_back(3.636567483190447, 0.8863154496066272, 1.252316070045344);
+		circles.emplace_back(3.496156062465161, 2.214391615707427, 1.235383106698282);
+		circles.emplace_back(1.00416972534731, -2.315942163113505, 0.4704247213667258);
+		circles.emplace_back(0.8485654159449041, -2.364085798617452, 0.8734305849531665);
+		circles.emplace_back(-1.331731954123825, -1.145134319085628, 1.335128057259135);
+		circles.emplace_back(2.369332842063159, 4.220306046772748, 1.220802192878909);
+		circles.emplace_back(2.876909200567752, 1.335731984581798, 0.7339855571975931);
+		circles.emplace_back(2.833233249839395, -1.178416663315147, 0.6755297314608469);
+		circles.emplace_back(-2.059845475014299, 3.952282525133342, 0.900663372944109);
+		circles.emplace_back(0.6015960755757987, -1.761708210688084, 0.9969198639737441);
+		circles.emplace_back(0.378448769915849, 1.056433019693941, 0.6675538811599835);
+		circles.emplace_back(-4.802659621927887, 3.96276660496369, 0.7980433585355058);
+		circles.emplace_back(0.2288868860341609, 3.70402431814, 1.235213473322801);
+		circles.emplace_back(-4.577082351315767, 0.9169036452658474, 1.204420009371824);
+		circles.emplace_back(-3.530172023456544, 1.162962967064232, 0.8424808876356109);
+		circles.emplace_back(-1.258622820023447, 3.248172311577946, 0.9277029477292671);
+		circles.emplace_back(-3.526475613471121, -1.43026176141575, 0.5084430751157925);
+		circles.emplace_back(-4.644387413281947, -3.509930658619851, 1.431876990874298);
+		circles.emplace_back(1.564402647782117, -3.076719532255083, 0.9094077795511111);
+		circles.emplace_back(-2.020558177027851, 2.090431491378695, 0.9091341151157394);
+		circles.emplace_back(0.8973517478443682, 3.069969292264432, 0.9382216985104604);
+		circles.emplace_back(4.446516789030284, -3.771006173919886, 1.070675076288171);
+		circles.emplace_back(2.725842942018062, 3.64219413837418, 1.057140280096792);
+		circles.emplace_back(-1.200847628060728, -1.267700919415802, 0.3317096386337652);
+		circles.emplace_back(4.453924077097327, 1.815213046502322, 0.7865098976297303);
+		circles.emplace_back(1.089008513372391, -1.500467683654279, 0.7673888105200604);
+		circles.emplace_back(-0.5908998544327915, 2.993149680551142, 0.957265331945382);
+		circles.emplace_back(0.5551526485942304, -2.072926161345094, 1.174800922931172);
+		circles.emplace_back(-2.215169460978359, -1.125187885481864, 0.7831751785008236);
+		circles.emplace_back(0.4318422195501626, 2.533610740210861, 0.7663849839707836);
+	}
+	result_expected = 8.26473724385745;
+
+	timer.reset();
+	result_actual = algorithm(a150, b150, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #150: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a151(-3.706742368172854, -1.695410383865237);
+	Point b151(3.152087552007288, 0.9427603278309107);
+	{
+		circles.emplace_back(-4.855989573989064, -4.123323222156614, 0.8996315820375457);
+		circles.emplace_back(-4.291360431816429, -0.103985492605716, 0.936251630890183);
+		circles.emplace_back(-3.601500533986837, 1.863858096767217, 1.432873473805375);
+		circles.emplace_back(-1.016052316408604, -2.274082137737423, 1.003757987706922);
+		circles.emplace_back(3.95115822320804, 1.604786089155823, 0.9474233512068166);
+		circles.emplace_back(-3.50209676893428, 0.5219307285733521, 0.9916057455586269);
+		circles.emplace_back(3.899145156610757, 3.846964461263269, 0.949941837391816);
+		circles.emplace_back(1.334900313522667, 0.3511193417944014, 1.49826796001289);
+		circles.emplace_back(1.558473019395024, 0.251476455014199, 0.9096599868265911);
+		circles.emplace_back(-3.389522719662637, 2.539032080676407, 0.5722124198218808);
+		circles.emplace_back(-3.962683568242937, 2.883913649711758, 1.032887978875078);
+		circles.emplace_back(0.4025918641127646, 0.4183786059729755, 0.7960869510425255);
+		circles.emplace_back(-0.3834242862649262, 3.225867685396224, 1.050606504012831);
+		circles.emplace_back(0.1738169719465077, 2.695262467022985, 0.8873089603846892);
+		circles.emplace_back(1.173273788299412, -1.313460206147283, 1.392195034609176);
+		circles.emplace_back(0.1375971944071352, -1.621957023162395, 0.7286570149241015);
+		circles.emplace_back(2.230752191971987, 3.32068792777136, 1.429460329306312);
+		circles.emplace_back(-2.95562508283183, 4.842327029909939, 1.824891064106487);
+		circles.emplace_back(-0.06278582150116563, -3.076921605970711, 0.6758615877712145);
+		circles.emplace_back(1.461611988488585, -2.611879103351384, 1.167191450367682);
+		circles.emplace_back(-0.3723627445288002, 3.967504103202373, 1.726500303600915);
+		circles.emplace_back(-3.697958632837981, 0.5190889514051378, 1.24324916487094);
+		circles.emplace_back(4.49353484204039, -2.771885169204324, 1.186791147501208);
+		circles.emplace_back(-2.60737078031525, 3.363352927844971, 1.584877465548925);
+		circles.emplace_back(-4.477811858523637, 2.457571208942682, 1.098969154176302);
+		circles.emplace_back(-4.14280331460759, 3.588859045412391, 1.340132162137888);
+		circles.emplace_back(-1.011936927679926, -2.491747082676739, 0.8558619238669052);
+		circles.emplace_back(-2.465130721684545, -0.306315899360925, 1.069232560391538);
+		circles.emplace_back(3.993970851879567, -1.986779707949609, 0.8450664869742468);
+		circles.emplace_back(-0.6755093554966152, 4.422745367046446, 0.7805672451620921);
+		circles.emplace_back(4.981856143567711, -3.972777102608234, 1.232248569536023);
+		circles.emplace_back(3.875587887596339, -4.228987253736705, 0.6979307201923802);
+		circles.emplace_back(2.252090473193675, 2.891596572007984, 0.9135469047119841);
+		circles.emplace_back(3.6987055814825, -0.6285452633164823, 1.16718944797758);
+		circles.emplace_back(-1.956287694629282, 4.455543986987323, 0.7765903928084299);
+		circles.emplace_back(0.230949732940644, 3.870363358873874, 1.142081955377944);
+		circles.emplace_back(-2.606102346908301, 1.104039025958627, 1.599458132288419);
+	}
+	result_expected = 8.537759298484255;
+
+	timer.reset();
+	result_actual = algorithm(a151, b151, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #151: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a152(-3.132441740017384, -3.795596955344081);
+	Point b152(3.036125095095485, -2.957285171374679);
+	{
+		circles.emplace_back(2.7316540828906, 3.986172436270863, 1.467347902827896);
+		circles.emplace_back(-3.320780594367534, 3.712233465630561, 1.087224420090206);
+		circles.emplace_back(0.8695989032275975, 0.9293025336228311, 0.7103738203411921);
+		circles.emplace_back(2.77810642728582, 4.7736248630099, 0.877007399010472);
+		circles.emplace_back(-3.09130608337, -1.201506711076945, 1.75238261197228);
+		circles.emplace_back(1.262308557052165, 3.588365034665912, 0.8369624791434034);
+		circles.emplace_back(-2.733875664416701, -2.629982510115951, 0.6813852925086393);
+		circles.emplace_back(4.357280361000448, 0.5575548927299678, 0.7720531769795342);
+		circles.emplace_back(-3.383402314502746, -0.6007303553633392, 0.8340223553823307);
+		circles.emplace_back(-4.435599267017096, -3.178979384247214, 0.6713311861967668);
+		circles.emplace_back(4.757881963159889, 4.686118217650801, 1.606236959458329);
+		circles.emplace_back(3.265529333148152, -4.406087559182197, 1.45875110689085);
+		circles.emplace_back(4.952153086196631, -0.2645560051314533, 1.112796411779709);
+		circles.emplace_back(-0.3343130531720817, -3.988728991243988, 1.424055379047058);
+		circles.emplace_back(4.120048542972654, 1.192313118372113, 1.020473548793234);
+		circles.emplace_back(-0.669842769857496, -2.953248575795442, 0.6671083126915618);
+		circles.emplace_back(-1.778816555161029, 2.301747289020568, 1.445812468160875);
+		circles.emplace_back(-4.200103438924998, 3.475719874259084, 1.220400894409977);
+		circles.emplace_back(2.096031324472278, -1.447240894194692, 0.8049541970947757);
+		circles.emplace_back(1.155857464764267, -1.432218600530177, 0.961127737420611);
+		circles.emplace_back(0.4464157740585506, 0.834289260674268, 0.503583820653148);
+		circles.emplace_back(-3.622047232929617, 4.567401057574898, 0.9415840309346094);
+		circles.emplace_back(-0.03861710196360946, -2.346454702783376, 0.8323506236774847);
+		circles.emplace_back(-0.2323727426119149, 0.1335564744658768, 1.016940995608456);
+		circles.emplace_back(1.396299705374986, -0.6143587850965559, 1.568397993198596);
+		circles.emplace_back(3.403281399514526, 2.243016737047583, 0.8843468817183747);
+		circles.emplace_back(-0.8220654889009893, -2.407559093553573, 1.183828681590967);
+		circles.emplace_back(4.119135483633727, 2.430379122961313, 0.9932793081970884);
+		circles.emplace_back(1.37049236567691, 1.144664639141411, 0.9096460388740524);
+		circles.emplace_back(2.772556429263204, -1.624019534792751, 1.035611438029446);
+		circles.emplace_back(4.622132431250066, 4.982366573531181, 1.411517358501442);
+		circles.emplace_back(0.0436965306289494, 3.613093902822584, 0.5529807924991473);
+		circles.emplace_back(4.225706101860851, 3.83424554252997, 0.4120858354726806);
+		circles.emplace_back(4.053524082992226, -1.546472136396915, 1.659150310861878);
+		circles.emplace_back(0.1293622027151287, -1.411688334774226, 0.755141465109773);
+		circles.emplace_back(-3.004548500757664, 2.087192700710148, 1.394300262420438);
+	}
+	result_expected = 7.559277616919725;
+
+	timer.reset();
+	result_actual = algorithm(a152, b152, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #152: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a153(-2.622891962062567, 2.180836336687207);
+	Point b153(3.891115327831358, 0.05623186565935612);
+	{
+		circles.emplace_back(3.828357586171478, 3.436765151564032, 0.8055230023572221);
+		circles.emplace_back(-4.551608280744404, 1.359642508905381, 0.7714800624875351);
+		circles.emplace_back(4.868506237398833, 2.575483948457986, 1.897134295222349);
+		circles.emplace_back(4.575513687450439, -4.691646045539528, 1.421923555596732);
+		circles.emplace_back(-1.563800985459238, -4.791752786841244, 0.8061142169171944);
+		circles.emplace_back(2.493924910668284, -1.940270096529275, 1.469054680760018);
+		circles.emplace_back(2.677444766741246, -1.062356519978493, 1.079101393301971);
+		circles.emplace_back(-3.281762532424182, -2.528168449643999, 1.596102568483911);
+		circles.emplace_back(2.614411057438701, 2.622398177627474, 0.9572502030292526);
+		circles.emplace_back(-0.9709272324107587, -2.3689712327905, 0.8867220218060538);
+		circles.emplace_back(-2.011291228700429, -3.00819308264181, 0.6756261480273679);
+		circles.emplace_back(2.288056362885982, 3.649935589637607, 1.364582063048147);
+		circles.emplace_back(3.959596154745668, 2.232519856188446, 0.7505498323822394);
+		circles.emplace_back(2.911687272135168, -1.341355957556516, 1.287516858498566);
+		circles.emplace_back(-0.1109641161747277, 3.961251352448016, 0.7816229480551555);
+		circles.emplace_back(1.941093534696847, 4.100096148904413, 0.7742419507121667);
+		circles.emplace_back(-4.120867496822029, -4.928792116697878, 0.8535681033739819);
+		circles.emplace_back(-2.843595535960048, -2.219722282607108, 1.069568415614776);
+		circles.emplace_back(4.754821329843253, 1.232995942700654, 0.9798502677353098);
+		circles.emplace_back(-0.08506118087098002, -2.692488750908524, 1.111664749099873);
+		circles.emplace_back(2.555773665662855, 1.092490388546139, 1.222821043455042);
+		circles.emplace_back(2.091626862529665, 3.332469060551375, 0.9397209753049537);
+		circles.emplace_back(-2.933673087973148, -2.811387542169541, 1.391337913204916);
+		circles.emplace_back(-0.5819469760172069, 1.121621464844793, 1.159861656255089);
+		circles.emplace_back(-4.779158069286495, -0.9368145815096796, 1.093959048972465);
+		circles.emplace_back(-3.596775361802429, 4.211678605061024, 1.458834170061164);
+		circles.emplace_back(0.1242337445728481, 4.703004576731473, 1.151400205981918);
+		circles.emplace_back(3.624640975613147, 3.951178283896297, 0.806365812360309);
+		circles.emplace_back(0.6735154218040407, -0.9090228914283216, 0.7834636625135317);
+		circles.emplace_back(-0.7475444651208818, -2.612284116912633, 0.9056379631860181);
+		circles.emplace_back(-4.893961262423545, -2.001344065647572, 0.7206101040588692);
+		circles.emplace_back(1.96249331580475, -3.04459378356114, 1.524567748955451);
+		circles.emplace_back(-2.016291043255478, -0.02328939503058791, 0.6862427877495065);
+		circles.emplace_back(0.6556035415269434, 2.507010910194367, 0.6560173167614266);
+		circles.emplace_back(1.899794831406325, -1.45715308142826, 0.7901092604966834);
+		circles.emplace_back(-3.618702951353043, 3.168758654501289, 0.6001680256566032);
+		circles.emplace_back(4.316048657055944, -1.421594263520092, 0.9034993417793884);
+		circles.emplace_back(2.312836314085871, -2.976770580280572, 0.424601547117345);
+		circles.emplace_back(0.1526949810795486, 4.675340217072517, 0.6906290195183828);
+		circles.emplace_back(-2.711085162591189, 4.496767481323332, 0.8246220543747768);
+	}
+	result_expected = 16.85711546641779;
+
+	timer.reset();
+	result_actual = algorithm(a153, b153, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #153: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a154(-2.162488061469048, 2.699591549113393);
+	Point b154(3.921645232941955, 1.854561591520905);
+	{
+		circles.emplace_back(3.577119631227106, -3.926218652632087, 0.9923015740001574);
+		circles.emplace_back(1.338900330010802, 3.971999890636653, 1.621126572857611);
+		circles.emplace_back(-4.724953782279044, 3.843133051414043, 1.164689214085229);
+		circles.emplace_back(0.5599563871510327, 4.470731464680284, 1.136628066352569);
+		circles.emplace_back(-0.797261914703995, 2.227320896927267, 1.033348550111987);
+		circles.emplace_back(-3.556994365062565, -1.284190502483398, 0.8577682002214715);
+		circles.emplace_back(1.419497921597213, -1.71362143708393, 1.555394987878389);
+		circles.emplace_back(-2.897163990419358, -3.043032682035118, 0.8897194834193214);
+		circles.emplace_back(-3.456702495459467, 4.803105650935322, 0.831407592468895);
+		circles.emplace_back(2.586336696986109, 3.3111782069318, 1.829017139668576);
+		circles.emplace_back(-3.22368671419099, -0.9890957060270011, 0.6206997028784826);
+		circles.emplace_back(-1.986213109921664, -3.71125970268622, 1.098783640540205);
+		circles.emplace_back(-2.088642029557377, -3.927712847944349, 0.7885322956601157);
+		circles.emplace_back(3.047964370343834, -3.462926123756915, 1.168251944589429);
+		circles.emplace_back(-1.472295813728124, 2.041943513322622, 0.8561441210331395);
+		circles.emplace_back(-0.4191099130548537, -2.565031030680984, 1.023496072390117);
+		circles.emplace_back(4.29230801993981, 0.7096805493347347, 0.7917117335600778);
+		circles.emplace_back(-1.319059517700225, -4.373667116742581, 1.757088187639601);
+		circles.emplace_back(1.986743093002588, 2.014757466968149, 0.6043040137505158);
+		circles.emplace_back(0.2870308398269117, -1.118123380001634, 1.11860611832235);
+		circles.emplace_back(-2.791850806679577, 1.207544940989465, 1.492624608310871);
+		circles.emplace_back(3.573965250980109, -2.385895743500441, 1.091989839938469);
+		circles.emplace_back(-4.113935071509331, -4.7026182920672, 0.6732485377928241);
+		circles.emplace_back(-2.403066793922335, 4.217746241483837, 0.5842908144230022);
+		circles.emplace_back(2.546864042524248, -4.725933328736573, 1.535140759195201);
+		circles.emplace_back(2.345853771548718, 0.3205452230758965, 0.6668947532074525);
+		circles.emplace_back(2.251430891919881, -2.333341354969889, 0.4177273787325248);
+		circles.emplace_back(-1.91079048672691, 4.233932013157755, 1.025835566804744);
+		circles.emplace_back(-2.252625504042953, -1.465167750138789, 1.144945258158259);
+		circles.emplace_back(-4.563144620042294, -4.738557694945484, 0.9592885693302378);
+		circles.emplace_back(2.279468548949808, -4.982267671730369, 0.8466420840704814);
+		circles.emplace_back(-1.835155647713691, 3.512509514112025, 0.699250793014653);
+		circles.emplace_back(3.98939172970131, 3.465200362261385, 1.015200814954005);
+		circles.emplace_back(0.229446419980377, 3.585934715811163, 0.972386092157103);
+		circles.emplace_back(2.987701341044158, -1.810005872976035, 0.8515928001375869);
+		circles.emplace_back(-1.051307234447449, 4.937019997742027, 1.132718630298041);
+	}
+	result_expected = 12.37296295946367;
+
+	timer.reset();
+	result_actual = algorithm(a154, b154, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #154: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a155(-2.755446232389659, -1.575936390087008);
+	Point b155(2.279246983584017, 0.7405337486416101);
+	{
+		circles.emplace_back(-4.744066579733044, 3.124185020569712, 1.31281912534032);
+		circles.emplace_back(-4.434192755725235, 1.935756157618016, 1.462388375657611);
+		circles.emplace_back(-3.959848054219037, 4.314540096092969, 0.865561564755626);
+		circles.emplace_back(-2.70374822197482, -3.673918901477009, 0.7508092691889032);
+		circles.emplace_back(-2.522119807545096, -3.808446282055229, 1.230060760327615);
+		circles.emplace_back(0.8521600090898573, -0.3948388923890889, 1.056064188550226);
+		circles.emplace_back(0.08453084854409099, 4.369842160958797, 1.360784813319333);
+		circles.emplace_back(3.59397302614525, -3.870663049165159, 1.069372719875537);
+		circles.emplace_back(-3.136129991617054, 4.977673355024308, 0.9945154367713257);
+		circles.emplace_back(2.679103955160826, -2.453398972284049, 0.8661510647507384);
+		circles.emplace_back(-4.751727196853608, 4.008927696850151, 1.302424888475798);
+		circles.emplace_back(-4.663359040860087, 3.310298530850559, 1.395400881045498);
+		circles.emplace_back(-1.549077380914241, 1.522347938735038, 1.01204376288224);
+		circles.emplace_back(3.635641701985151, 1.444970180746168, 0.8445156693225726);
+		circles.emplace_back(1.700641156639904, 2.74084601784125, 1.359255878464319);
+		circles.emplace_back(0.6087070167995989, -2.001892153639346, 1.421328612673096);
+		circles.emplace_back(0.8523403177969158, -0.7654523919336498, 1.206851570052095);
+		circles.emplace_back(-4.681959103327245, -0.02603752771392465, 0.9121485395124181);
+		circles.emplace_back(0.6168225384317338, 1.407540610525757, 0.6031781140947714);
+		circles.emplace_back(2.905880885664374, -1.43142543034628, 1.44257237247657);
+		circles.emplace_back(3.795534137170762, 0.5004712683148682, 0.5924737381981685);
+		circles.emplace_back(4.346368939150125, -2.166929023806006, 0.9290222581243142);
+		circles.emplace_back(-0.4925441206432879, -4.318887291010469, 1.064070730865933);
+		circles.emplace_back(4.585314302239567, -1.289813232142478, 1.175307380291633);
+		circles.emplace_back(-3.685629994142801, -1.06996153248474, 0.7066614174516871);
+		circles.emplace_back(0.794397306162864, 4.788011291529983, 1.518889752938412);
+		circles.emplace_back(-3.256767948623747, 2.307579412590712, 0.8214584846748039);
+		circles.emplace_back(-1.308888320345432, -1.180872383993119, 1.261569902230985);
+		circles.emplace_back(-4.789325303863734, -3.917977178934962, 0.8279091946547851);
+		circles.emplace_back(4.180137978401035, 0.2686121710576117, 1.051584727154113);
+		circles.emplace_back(4.243482819292694, 3.199839990120381, 0.5395049470243976);
+		circles.emplace_back(3.485473475884646, 1.710855283308774, 1.397896814835258);
+		circles.emplace_back(3.675900076050311, 1.443437130656093, 0.6483622586121782);
+		circles.emplace_back(1.588878554757684, 4.059092497918755, 1.010635897167958);
+		circles.emplace_back(4.397959115449339, 3.006436235737056, 0.6489604220492765);
+		circles.emplace_back(-0.0964832422323525, -2.68767575500533, 1.623981226538308);
+	}
+	result_expected = 6.074430850599517;
+
+	timer.reset();
+	result_actual = algorithm(a155, b155, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #155: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a156(-2.614524539094418, -1.268058119341731);
+	Point b156(2.839009271468967, 1.160471731796861);
+	{
+		circles.emplace_back(-1.259078572038561, -1.091264055576175, 0.9781106695765629);
+		circles.emplace_back(-4.354555865284055, 4.943890168797225, 1.227046142960899);
+		circles.emplace_back(-0.5143372458405793, 1.819261547643691, 1.464110106159933);
+		circles.emplace_back(-1.821697361301631, 2.252295350190252, 1.450894518918358);
+		circles.emplace_back(1.988226936664432, 1.259428227785975, 0.498225954757072);
+		circles.emplace_back(3.462405374739319, -0.2410863828845322, 1.276308797555975);
+		circles.emplace_back(-1.00413701729849, 4.062466837931424, 0.5586324666859581);
+		circles.emplace_back(4.730280910152942, 0.6518823816441, 1.546148598729633);
+		circles.emplace_back(2.631902319844812, -3.256733024027199, 1.593586510070599);
+		circles.emplace_back(4.086408915463835, 4.668006009887904, 1.831551845441572);
+		circles.emplace_back(1.928374457638711, 4.837785859126598, 1.229093203996308);
+		circles.emplace_back(4.717112437356263, -2.610407324973494, 0.8874351758277043);
+		circles.emplace_back(-1.830403229687363, -2.684605789836496, 0.9410338329384103);
+		circles.emplace_back(-3.218214379157871, 1.260956737678498, 1.455671967449598);
+		circles.emplace_back(4.333359494339675, 3.063670874107629, 0.7821613149018958);
+		circles.emplace_back(-2.616593900602311, 0.8026139973662794, 1.259185278578661);
+		circles.emplace_back(4.037420784588903, -1.543123365845531, 0.8846419342095032);
+		circles.emplace_back(-4.534499978180975, -4.971459091175348, 1.392497698660009);
+		circles.emplace_back(-4.386129577178508, -1.250193554442376, 0.8625329873757437);
+		circles.emplace_back(2.150696434546262, -2.057037393096834, 1.081272287643515);
+		circles.emplace_back(1.992514522280544, 0.2379380562342703, 1.053234428004362);
+		circles.emplace_back(4.672726488206536, -3.042021666187793, 0.8425584713695571);
+		circles.emplace_back(0.7267773221246898, 3.542763732839376, 1.100038534146734);
+		circles.emplace_back(-3.590808312874287, 2.881926612462848, 0.8163239476969465);
+		circles.emplace_back(4.491709915455431, -0.2320894389413297, 0.6269250590587034);
+		circles.emplace_back(-4.653355849441141, -2.469263740349561, 1.044908345560543);
+		circles.emplace_back(4.473539504688233, -0.6228764611296356, 0.5292102637933567);
+		circles.emplace_back(-2.647509395610541, -0.239396917168051, 0.4377765666460618);
+		circles.emplace_back(1.003786528017372, -2.780595568474382, 1.037056667567231);
+		circles.emplace_back(-2.360049427952617, 1.560175854247063, 0.8618794268695638);
+		circles.emplace_back(1.318320750724524, 4.919568106997758, 0.9406862893374636);
+		circles.emplace_back(2.542767983395606, -3.475971093866974, 0.5305464023491367);
+		circles.emplace_back(-2.807178834918886, 2.61419682065025, 0.63391359152738);
+		circles.emplace_back(2.91559417033568, -2.693457559216768, 1.213639972056262);
+		circles.emplace_back(-0.829051707405597, 4.493441667873412, 1.073825274338014);
+		circles.emplace_back(-1.106071032118052, 0.2764053991995752, 1.44619323683437);
+		circles.emplace_back(2.910131232347339, -4.44166082656011, 1.206582506583072);
+		circles.emplace_back(2.134225389454514, -1.693200517911464, 1.759432181972079);
+		circles.emplace_back(0.5722155491821468, -0.8287202636711299, 1.009907116484828);
+		circles.emplace_back(4.760232095140964, 0.1949166669510305, 1.58445113801863);
+	}
+	result_expected = 20.34563058187442;
+
+	timer.reset();
+	result_actual = algorithm(a156, b156, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #156: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a157(-2.986462369095534, -3.908813280984759);
+	Point b157(3.456657384987921, -0.8495183493942022);
+	{
+		circles.emplace_back(-0.6594360829330981, 2.815866621676832, 0.9867928544292226);
+		circles.emplace_back(-0.2778818621300161, -0.2809713897295296, 1.531022850307636);
+		circles.emplace_back(3.926688849460334, 4.817881092894822, 0.7446910032304004);
+		circles.emplace_back(4.344076078850776, -4.617133310530335, 1.034913190617226);
+		circles.emplace_back(2.052649816032499, 1.763300879392773, 0.8892539024585857);
+		circles.emplace_back(3.588779459241778, -1.233103529084474, 0.2858967129839584);
+		circles.emplace_back(0.7921061175875366, 2.427085426170379, 0.9596773221390321);
+		circles.emplace_back(0.03542318241670728, 1.77493262803182, 0.9623521603411063);
+		circles.emplace_back(2.487514929380268, -4.265320783015341, 1.232363825128414);
+		circles.emplace_back(-1.489526310469955, 1.847265015821904, 1.342305749910883);
+		circles.emplace_back(-2.579923935700208, -0.8379104058258235, 1.058233176660724);
+		circles.emplace_back(3.494752419646829, -2.747153097297996, 0.9780204247916117);
+		circles.emplace_back(4.042135330382735, 0.2371947537176311, 0.9539616138441488);
+		circles.emplace_back(4.918144152034074, 3.488315043505281, 0.8442578170215711);
+		circles.emplace_back(-0.1861672312952578, -2.261111659463495, 0.3963330211350694);
+		circles.emplace_back(3.455053253564984, -2.881117698270828, 1.312062987568788);
+		circles.emplace_back(-4.494200304616243, -2.767392366658896, 0.6155595273943617);
+		circles.emplace_back(-3.432682070415467, -2.386094874236733, 1.131021161540411);
+		circles.emplace_back(2.804328387137502, -4.84260925790295, 1.120053603523411);
+		circles.emplace_back(-4.653021877165884, -4.63347438024357, 1.182197439367883);
+		circles.emplace_back(4.615254353266209, -2.341388154309243, 0.9909417904214933);
+		circles.emplace_back(1.81334561901167, 1.722658982034773, 1.378902128315531);
+		circles.emplace_back(2.734731973614544, -1.639073451515287, 0.6386564208427443);
+		circles.emplace_back(-4.611051434185356, -3.201967005152255, 0.9254229659913107);
+		circles.emplace_back(-2.647324644494802, -0.3727635811083019, 1.067370052379556);
+		circles.emplace_back(4.421557534951717, 3.280029760207981, 1.083371479599736);
+		circles.emplace_back(-0.432631375733763, -4.678745397832245, 1.466441008844413);
+		circles.emplace_back(0.3963360958732665, -3.670924224425107, 1.450404223124496);
+		circles.emplace_back(-1.606820758897811, -2.262753273826092, 0.718103428487666);
+		circles.emplace_back(-0.9748723800294101, -3.059579806867987, 1.341821822128259);
+		circles.emplace_back(-1.823098307941109, -2.565259931143373, 0.9690336549887433);
+		circles.emplace_back(1.91160878399387, -0.5330151435919106, 1.493478443357162);
+		circles.emplace_back(0.3656026418320835, -4.991037293802947, 1.270260744658299);
+		circles.emplace_back(3.721508991438895, -2.812436542008072, 1.262051493837498);
+		circles.emplace_back(-1.060067603830248, -2.910506890621036, 1.682662300788797);
+		circles.emplace_back(1.486313680652529, -3.418009087909013, 0.7735260416520759);
+		circles.emplace_back(-4.708288733381778, 3.840069409925491, 0.9114977835910394);
+		circles.emplace_back(3.586838238406926, -4.904002214316279, 1.350240638083778);
+	}
+	result_expected = 15.24742126572924;
+
+	timer.reset();
+	result_actual = algorithm(a157, b157, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #157: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a158(-2.926638636272401, 0.5453810412436724);
+	Point b158(2.518602037336677, 3.767116392031312);
+	{
+		circles.emplace_back(-1.43647879594937, 4.849777987692505, 1.52014452854637);
+		circles.emplace_back(2.370113807264715, -4.072247364092618, 0.8655092649860308);
+		circles.emplace_back(1.011699202936143, -0.2041915315203369, 0.1748047995613888);
+		circles.emplace_back(-3.770441382657737, -0.4221651726402342, 0.8666104491567239);
+		circles.emplace_back(3.760268741752952, -2.847971019800752, 1.401608663261868);
+		circles.emplace_back(1.379373578820378, -4.554147433955222, 0.6126344552962109);
+		circles.emplace_back(2.060330819804221, 1.967307308223099, 1.617691246583126);
+		circles.emplace_back(3.808191528078169, -3.531567321624607, 0.7003641382092609);
+		circles.emplace_back(4.452933112625033, -1.107244596350938, 0.6305670995963737);
+		circles.emplace_back(-3.749781970400363, 2.893746432382613, 1.645847222139127);
+		circles.emplace_back(0.8855971624143422, -4.683665598277003, 0.7429227702086791);
+		circles.emplace_back(-4.767198695335537, -2.246448730584234, 0.8162337130168452);
+		circles.emplace_back(4.765187969896942, 4.863408009987324, 1.130423178034834);
+		circles.emplace_back(-3.704298653174192, 1.930302896071225, 0.7413412337424233);
+		circles.emplace_back(-4.540503101889044, 4.431719279382378, 1.012879106053151);
+		circles.emplace_back(-4.092672464903444, 0.8268874953500926, 0.8765405640704557);
+		circles.emplace_back(-4.755470764357597, 4.08370514633134, 0.9386960159288719);
+		circles.emplace_back(4.873337701428682, 0.5998204625211656, 1.215158026269637);
+		circles.emplace_back(4.828945079352707, -0.188161504920572, 1.243521209270693);
+		circles.emplace_back(1.32947368780151, 0.5421727034263313, 1.231388692441396);
+		circles.emplace_back(-1.242540285456926, 2.135930836666375, 0.8378544912906363);
+		circles.emplace_back(0.5465903249569237, 0.6561799882911146, 0.9608280451735481);
+		circles.emplace_back(2.733555173035711, -4.486108364071697, 1.056933740549721);
+		circles.emplace_back(-0.767961775418371, -2.998740554321557, 1.112782914633863);
+		circles.emplace_back(0.2426720666699111, -0.09840382961556315, 1.625419586081989);
+		circles.emplace_back(0.5654837866313756, -0.3384992876090109, 1.329128824151121);
+		circles.emplace_back(3.812547416891903, -0.9053252241574228, 1.168085333541967);
+		circles.emplace_back(0.09379903087392449, -0.6628805142827332, 1.260278541850857);
+		circles.emplace_back(3.369194574188441, 1.836110197473317, 0.699886163813062);
+		circles.emplace_back(0.6173454714007676, -0.6652241782285273, 1.335092893033288);
+		circles.emplace_back(-4.856884928885847, -1.939751484896988, 1.3278050650144);
+		circles.emplace_back(-0.9758049971424043, -2.865996726322919, 1.55761957548093);
+		circles.emplace_back(1.670176002662629, -4.250702138524503, 1.119333896343596);
+		circles.emplace_back(-2.928200482856482, -0.5469112866558135, 0.9742879073834046);
+		circles.emplace_back(0.3651802777312696, 2.452607902232558, 1.075846419692971);
+		circles.emplace_back(0.1273397193290293, 0.5775864305905998, 0.7081171250669285);
+		circles.emplace_back(-1.326499164570123, -1.688008203636855, 1.630956072476692);
+		circles.emplace_back(1.608452361542732, -0.6017561466433108, 1.339113035215996);
+	}
+	result_expected = 6.97242173188933;
+
+	timer.reset();
+	result_actual = algorithm(a158, b158, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #158: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a159(-3.3354487339966, 2.55845688469708);
+	Point b159(3.597456944640726, -3.247585317119956);
+	{
+		circles.emplace_back(3.382549674715847, -4.9347461364232, 1.411210745410062);
+		circles.emplace_back(-2.347546808887273, -0.7374529610387981, 0.6657043275656178);
+		circles.emplace_back(1.665680010337383, -4.359172268304974, 1.215303206234239);
+		circles.emplace_back(0.5820243037305772, 3.007816395256668, 1.336826654174365);
+		circles.emplace_back(-3.413915408309549, -0.1525051076896489, 0.5780533679528161);
+		circles.emplace_back(0.636542949359864, 4.576086227316409, 0.9365321698831394);
+		circles.emplace_back(-0.3440926666371524, 3.73101390665397, 1.953077770373784);
+		circles.emplace_back(-4.270683324430138, 4.156934472266585, 1.562305171252228);
+		circles.emplace_back(-3.981212319340557, 3.355961281340569, 1.024307209881954);
+		circles.emplace_back(3.715111732017249, -4.458075955044478, 0.7059667983325197);
+		circles.emplace_back(-1.391188639681786, 3.570573457982391, 0.6645316118141635);
+		circles.emplace_back(-2.865012029651552, 4.032432122621685, 0.9745517283910885);
+		circles.emplace_back(1.47276837611571, 3.195002123247832, 0.8260231231106445);
+		circles.emplace_back(3.928846146445721, 0.02832659753039479, 1.771081720222719);
+		circles.emplace_back(4.640589968767017, 0.7071576663292944, 0.3352115949848666);
+		circles.emplace_back(3.469223997090012, 3.907440255861729, 1.007580027240328);
+		circles.emplace_back(4.043148986529559, 4.371501274872571, 1.244309176993556);
+		circles.emplace_back(1.272060994524509, 4.417288245167583, 1.156249915598892);
+		circles.emplace_back(4.856702161487192, 2.178809887263924, 1.162054155417718);
+		circles.emplace_back(-2.942526189144701, 4.388744391035289, 1.099410766432993);
+		circles.emplace_back(-2.926714282948524, -1.176405202131718, 0.8316017653094604);
+		circles.emplace_back(4.946462616790086, -4.164074661675841, 0.8973281863844021);
+		circles.emplace_back(2.084562608506531, -3.934017044957727, 1.281255623907782);
+		circles.emplace_back(2.038347704801708, -2.040949400980026, 1.378224277379922);
+		circles.emplace_back(0.08687470806762576, -0.4563399846665561, 0.9799299956532195);
+		circles.emplace_back(1.755305316764861, 2.080317491199821, 1.163376437290571);
+		circles.emplace_back(-4.141207451466471, -1.184069903101772, 0.984955196850933);
+		circles.emplace_back(1.136793608311564, 0.4625275428406894, 1.444532444770448);
+		circles.emplace_back(-4.278778780717403, 1.819091450888664, 1.003490788419731);
+		circles.emplace_back(-3.963494531344622, -0.4255707957781851, 1.245551007962786);
+		circles.emplace_back(1.048714758362621, -3.388453980442137, 1.178459642664529);
+		circles.emplace_back(3.311203664634377, 4.831585462670773, 1.634356644260697);
+		circles.emplace_back(4.852995134424418, 4.205029599834234, 0.7480019075097516);
+		circles.emplace_back(0.9462625277228653, -4.849831296596676, 1.565164945810102);
+		circles.emplace_back(1.455765662249178, -4.834931918885559, 1.151471329131164);
+		circles.emplace_back(4.386959152761847, -4.446571089792997, 0.8119889729423448);
+		circles.emplace_back(-1.142247554380447, -1.730766023974866, 1.102457331423648);
+		circles.emplace_back(-1.112474172841758, -1.683324950281531, 0.8901797052239998);
+	}
+	result_expected = 21.59278383485694;
+
+	timer.reset();
+	result_actual = algorithm(a159, b159, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #159: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a160(-3.568900238256902, 0.4687969703227282);
+	Point b160(2.025525154080242, 0.6833151523023844);
+	{
+		circles.emplace_back(-4.442988450173289, 2.20169415930286, 0.9785552047425881);
+		circles.emplace_back(-4.778861587401479, 4.896800487767905, 0.8093739864183589);
+		circles.emplace_back(-3.393724013585597, -1.831069875042886, 1.446088556130417);
+		circles.emplace_back(3.330705829430372, -3.655303607229143, 0.884603264904581);
+		circles.emplace_back(4.978343786206096, -1.550221999641508, 1.354558153287508);
+		circles.emplace_back(2.159585601184517, 2.668906922917813, 1.086777293193154);
+		circles.emplace_back(0.8960880408994853, -4.418300099205226, 1.063251299900003);
+		circles.emplace_back(0.2887025964446366, -1.837961210403591, 1.045171172707342);
+		circles.emplace_back(-0.3002637648023665, 4.413516393397003, 0.9438871596241369);
+		circles.emplace_back(-1.159328443463892, -3.935647525358945, 1.151179250399582);
+		circles.emplace_back(-2.16104143531993, -0.4179775970987976, 0.3344005543040112);
+		circles.emplace_back(-3.134041100274771, -3.465084510389715, 0.3141329135512933);
+		circles.emplace_back(3.648586624767631, 2.768571379128844, 1.050352104962803);
+		circles.emplace_back(4.179911224637181, -1.841172587592155, 1.257178809377365);
+		circles.emplace_back(1.850833564531058, 3.766389444936067, 1.008432489004917);
+		circles.emplace_back(-3.902019450906664, 2.651099993381649, 1.509302024566568);
+		circles.emplace_back(0.0706485309638083, 2.984671785961837, 0.6841056038392708);
+		circles.emplace_back(0.3343381243757904, -4.672592047136277, 1.093217730452307);
+		circles.emplace_back(3.052757552359253, 2.516959409695119, 0.8375702428398654);
+		circles.emplace_back(2.520329139661044, -1.822420738171786, 1.862864545476623);
+		circles.emplace_back(-0.4059246438555419, 1.59427055856213, 0.903858990012668);
+		circles.emplace_back(-1.045565383974463, 1.580544507596642, 0.8238121744478121);
+		circles.emplace_back(-2.944437561091036, 2.311925597023219, 0.9695692912442609);
+		circles.emplace_back(-3.350708198267967, -4.57145283697173, 1.19994296238292);
+		circles.emplace_back(-4.811211570631713, -2.754053922835737, 0.9098356801783666);
+		circles.emplace_back(4.402476085815579, 4.235238644760102, 0.7140199376968667);
+		circles.emplace_back(-1.069920167792588, 0.9133147005923092, 1.032044829544611);
+		circles.emplace_back(-4.848768080119044, 1.540556906256825, 1.128165823989548);
+		circles.emplace_back(2.713499467354268, 4.438929718453437, 0.9720548114972188);
+		circles.emplace_back(-4.456694803666323, 0.2138858637772501, 0.7636423125630244);
+		circles.emplace_back(-3.796512095723301, -2.728596439119428, 0.8910928247729316);
+		circles.emplace_back(-3.247411751653999, 1.975278581958264, 1.33176371853333);
+	}
+	result_expected = 5.770034399977337;
+
+	timer.reset();
+	result_actual = algorithm(a160, b160, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #160: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a161(-2.935927360784262, 0.8027112651616335);
+	Point b161(2.198754122015089, -2.144554605707526);
+	{
+		circles.emplace_back(-1.645296381320804, 2.946631226222962, 1.551117806020193);
+		circles.emplace_back(4.773177697788924, 1.554826081264764, 0.7145073757739737);
+		circles.emplace_back(3.370598789770156, -3.171756661031395, 1.283132651611231);
+		circles.emplace_back(2.56540093338117, -4.763277114834636, 1.41725724118296);
+		circles.emplace_back(2.981015408877283, 1.127786755096167, 1.250069935317151);
+		circles.emplace_back(-4.337046046275645, 0.05577431293204427, 0.6011626652674749);
+		circles.emplace_back(4.212055422831327, 4.819731970783323, 0.9147890671854838);
+		circles.emplace_back(3.433173389639705, -1.375250627752393, 1.172771856025792);
+		circles.emplace_back(-0.8574267267249525, -0.8744650823064148, 0.8950734208105131);
+		circles.emplace_back(3.491281575988978, 1.892441355157644, 0.5162172404350712);
+		circles.emplace_back(-4.662665228825063, 0.3633302613161504, 1.420259895711206);
+		circles.emplace_back(0.2159734047017992, 4.05955376336351, 0.9974051464581861);
+		circles.emplace_back(-4.896887016948313, 1.748735539149493, 1.133446482638828);
+		circles.emplace_back(3.73466870514676, -0.01792597351595759, 1.478590616886504);
+		circles.emplace_back(0.5672328476794064, 3.070105982478708, 1.332905761501752);
+		circles.emplace_back(1.85645749559626, 4.112427982036024, 1.131594190956093);
+		circles.emplace_back(3.58979499200359, 3.001423615496606, 1.399261949094944);
+		circles.emplace_back(-2.041890800464898, 2.821676835883409, 0.8197534271748737);
+		circles.emplace_back(3.251277965027839, 4.499597975518554, 1.737606301321648);
+		circles.emplace_back(-4.300389329437166, -2.292262928094715, 1.336475378298201);
+		circles.emplace_back(-2.143563141580671, 3.010299548041075, 0.5635303620947525);
+		circles.emplace_back(0.4105416196398437, 4.975072529632598, 1.57946716689039);
+		circles.emplace_back(1.813385032583028, 3.827540760394186, 0.7665487386053428);
+		circles.emplace_back(0.7971897884272039, 3.920526618603617, 0.741870247409679);
+		circles.emplace_back(-0.8665355830453336, 2.667063127737492, 1.381062770145945);
+		circles.emplace_back(-2.977348037529737, 4.727931388188154, 0.252109878254123);
+		circles.emplace_back(3.402978603262454, -3.927817104849964, 0.8713836451759561);
+		circles.emplace_back(-2.347918299492449, -0.5769087304361165, 1.080888208816759);
+		circles.emplace_back(-4.755479854065925, 3.598269273061305, 0.5929627712117508);
+		circles.emplace_back(-4.660915329586715, 3.816699085291475, 0.8936228904640301);
+		circles.emplace_back(-1.516671052668244, 2.182307916227728, 0.6448670389363542);
+		circles.emplace_back(4.430159612093121, 2.673959496896714, 1.197100868704729);
+		circles.emplace_back(-1.839389756787568, -2.610085576307029, 0.7438327820273116);
+		circles.emplace_back(-0.9651087853126228, -1.634803956840187, 1.305154778226279);
+		circles.emplace_back(4.519564693327993, -2.647677154745907, 0.9449884735280647);
+		circles.emplace_back(-3.992656653281301, 2.171307175885886, 0.7870119509054347);
+		circles.emplace_back(1.319604467134923, 3.476443004328758, 1.387386069376953);
+		circles.emplace_back(-3.909722499083728, 1.269812097307295, 0.9407513707643375);
+	}
+	result_expected = 5.998433770103167;
+
+	timer.reset();
+	result_actual = algorithm(a161, b161, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #161: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a162(-2.394924152176827, -0.3027114551514387);
+	Point b162(3.423659542109817, -1.848713969811797);
+	{
+		circles.emplace_back(-3.212071585003287, -0.6831214367412031, 0.2739805918419733);
+		circles.emplace_back(1.606698187533766, -4.283419095445424, 1.840861147711985);
+		circles.emplace_back(3.270316261332482, 1.239812124986202, 1.286102321301587);
+		circles.emplace_back(-2.00015117181465, 1.926544902380556, 0.7403561357175931);
+		circles.emplace_back(-4.597530534956604, -1.118343693669885, 1.465145179838873);
+		circles.emplace_back(-4.957113282289356, -4.634964999277145, 1.371686911466531);
+		circles.emplace_back(-0.7659986172802746, 1.843719810713083, 1.290216302988119);
+		circles.emplace_back(-0.08176159346476197, 3.521976678166538, 1.434209971898235);
+		circles.emplace_back(0.440275187138468, 2.896244793664664, 1.711851814086549);
+		circles.emplace_back(0.1567008602432907, -1.390683043282479, 1.696314556081779);
+		circles.emplace_back(3.179476030636579, -0.08270818972960114, 1.252967232442461);
+		circles.emplace_back(-0.4302076087333262, 4.762531260494143, 1.152790330187417);
+		circles.emplace_back(3.19280261406675, 1.623479898553342, 1.281263949978165);
+		circles.emplace_back(-3.485306047368795, -2.76958406670019, 1.525017188233323);
+		circles.emplace_back(-2.238716434221715, 1.348706053104252, 0.5842461330583318);
+		circles.emplace_back(-2.632447781506926, 4.126104286406189, 0.6878347162390127);
+		circles.emplace_back(-2.123103972990066, -4.367801870685071, 0.5886580216931179);
+		circles.emplace_back(0.6288081943057477, 1.501492562238127, 0.5562511557945982);
+		circles.emplace_back(-0.837010235991329, -0.5317774531431496, 1.03544432434719);
+		circles.emplace_back(-4.30827620672062, -3.490944250952452, 0.8848759019048884);
+		circles.emplace_back(0.5884280917234719, -4.997885844204575, 0.7871316412230953);
+		circles.emplace_back(1.879819741006941, 1.773144139442593, 1.522307141148485);
+		circles.emplace_back(4.627496639732271, 1.457920565735549, 0.6698882181895897);
+		circles.emplace_back(1.49221807019785, 1.905914579983801, 0.8001825503772124);
+		circles.emplace_back(-3.933491243515164, 1.900015736464411, 1.02217797099147);
+		circles.emplace_back(4.516520372126251, 4.77034906623885, 1.495601554471068);
+		circles.emplace_back(-3.716972388792783, -4.91054781479761, 1.526522714388557);
+		circles.emplace_back(-1.820272232871503, -1.638720838818699, 1.435313138901256);
+		circles.emplace_back(-4.988753276411444, -4.368851089384407, 0.8500185277545824);
+		circles.emplace_back(2.78501987690106, 3.986401564907283, 1.174114589462988);
+		circles.emplace_back(4.823620871175081, -4.527499231044203, 0.5115072000538931);
+		circles.emplace_back(-4.946764430496842, -1.954535020049661, 1.189933492452838);
+		circles.emplace_back(-4.682800935115665, -4.98406418832019, 0.7826672657160088);
+		circles.emplace_back(4.089501097332686, -0.1940212841145694, 1.024302642163821);
+	}
+	result_expected = 6.773247701824389;
+
+	timer.reset();
+	result_actual = algorithm(a162, b162, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #162: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a163(-2.761996455024928, -2.317377043887973);
+	Point b163(3.119717923458666, -1.857290228828788);
+	{
+		circles.emplace_back(4.269037412013859, -2.057135736104101, 1.138132247910835);
+		circles.emplace_back(-3.983520695473999, 0.07713387487456203, 0.8843051242409273);
+		circles.emplace_back(-1.653695919085294, 4.369316913653165, 0.9993082319619133);
+		circles.emplace_back(-0.104728068690747, -3.002632765565068, 1.620655936538242);
+		circles.emplace_back(-4.037129657808691, -2.909499609377235, 1.21207222903613);
+		circles.emplace_back(-4.608286914881319, 4.437186426948756, 0.6741574899060652);
+		circles.emplace_back(2.320504474919289, -3.45864127157256, 1.261270300601609);
+		circles.emplace_back(2.392870441544801, 1.245806363876909, 1.41319382970687);
+		circles.emplace_back(-1.950467845890671, -4.735434127505869, 1.781942056328989);
+		circles.emplace_back(3.191011680755764, -4.021313574630767, 1.532387967291288);
+		circles.emplace_back(2.419552698265761, -3.788273453246802, 1.078698934731074);
+		circles.emplace_back(2.083023127634078, 3.850006961729378, 1.00392138378229);
+		circles.emplace_back(-4.413284624461085, -1.465493680443615, 0.9034612484509125);
+		circles.emplace_back(-1.197468971367925, -0.8305402402766049, 1.251872943039052);
+		circles.emplace_back(-3.249885637778789, -0.1426099124364555, 1.32844364263583);
+		circles.emplace_back(2.549862184096128, -4.610182682517916, 1.184611393488012);
+		circles.emplace_back(0.1484546973370016, -1.777013053651899, 1.165927052334882);
+		circles.emplace_back(1.021699404809624, 3.856589521747082, 0.4794553260086104);
+		circles.emplace_back(4.480485327076167, 0.3187681664712727, 0.7494411823572591);
+		circles.emplace_back(3.19775601150468, -3.840329928789288, 0.6526816425612196);
+		circles.emplace_back(-2.671210917178541, 3.98084374377504, 0.5400049705291167);
+		circles.emplace_back(4.466012346092612, -2.610781260300428, 1.154018277744763);
+		circles.emplace_back(-1.743636813480407, 1.075851742643863, 0.9935334327863529);
+		circles.emplace_back(-3.288973986636847, 2.344119322951883, 0.7854991029715165);
+		circles.emplace_back(-3.820982372853905, 0.4362534009851515, 1.158917726040818);
+		circles.emplace_back(2.143962502013892, -1.682704284321517, 0.3081212022574618);
+		circles.emplace_back(-4.755867857020348, 2.876971492078155, 0.7473013216396793);
+		circles.emplace_back(1.516049166675657, 4.605621977243572, 0.9674076646799221);
+		circles.emplace_back(2.368691156152636, -0.04893000470474362, 1.055644992436282);
+		circles.emplace_back(3.537973787169904, -4.510020527523011, 1.160028974642046);
+		circles.emplace_back(-4.97017279965803, -2.078490073326975, 1.150609994656406);
+		circles.emplace_back(-4.960654361639172, -3.746307676192373, 1.422847594902851);
+		circles.emplace_back(-0.8053988008759916, -2.323085118550807, 0.2356055411277339);
+		circles.emplace_back(2.471866242121905, 0.01653618412092328, 0.7599555929424241);
+		circles.emplace_back(4.092779878992587, 4.909313262905926, 1.244011729001067);
+		circles.emplace_back(-3.80604081088677, -1.609629744198173, 0.3828750651562586);
+		circles.emplace_back(-1.420134750660509, -2.296483360696584, 0.8368705034954473);
+		circles.emplace_back(2.756166562903672, 3.075167534407228, 1.548180991760455);
+	}
+	result_expected = -1;
+
+	timer.reset();
+	result_actual = algorithm(a163, b163, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #163: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
+	Point a164(-2.743432607036084, 0.07341557927429676);
+	Point b164(3.18972791871056, 1.677895480766892);
+	{
+		circles.emplace_back(0.01006360864266753, -2.553104774560779, 1.320747548365034);
+		circles.emplace_back(-1.388512959238142, -3.534712449181825, 0.5456950072897597);
+		circles.emplace_back(-2.802141581196338, 1.628731873352081, 1.19814084910322);
+		circles.emplace_back(1.195277713704854, 3.806176071520895, 0.6387736178701743);
+		circles.emplace_back(-1.648987217340618, -4.162466411944479, 1.402902900264598);
+		circles.emplace_back(-1.855145373847336, -4.038814653176814, 1.29362101580482);
+		circles.emplace_back(-0.9437925298698246, -3.240182034205645, 1.466229956340976);
+		circles.emplace_back(-4.142199333291501, -4.155518768820912, 1.786743213771842);
+		circles.emplace_back(-3.557656633201987, 3.347379511687905, 0.494997812458314);
+		circles.emplace_back(-2.295153883751482, -2.693286084104329, 0.3310360998613759);
+		circles.emplace_back(-2.774147551972419, -3.350137423258275, 0.5701012666570022);
+		circles.emplace_back(1.262295374181122, 2.88433380657807, 1.13308398744557);
+		circles.emplace_back(3.807379289064556, 3.090808156412095, 1.541546168806962);
+		circles.emplace_back(2.203366800677031, 0.8038658206351101, 0.8795890600653364);
+		circles.emplace_back(1.51313551934436, -0.9977137506939471, 0.7964870946248993);
+		circles.emplace_back(-1.520476753357798, -1.061137409415096, 1.033433922403492);
+		circles.emplace_back(1.458896214608103, 2.352216809522361, 0.8741616424871608);
+		circles.emplace_back(0.5432921159081161, 4.515325736720115, 1.103824338992126);
+		circles.emplace_back(4.327608414459974, -4.072750101331621, 1.417070183134638);
+		circles.emplace_back(-2.133085785899311, 2.553479711059481, 0.6678704990306868);
+		circles.emplace_back(-3.47181057324633, -2.043788556475192, 1.120628994214348);
+		circles.emplace_back(-4.659684144426137, -0.4318574140779674, 0.9086542618693784);
+		circles.emplace_back(1.971459139604121, -4.224773778114468, 1.312993182032369);
+		circles.emplace_back(0.4424468451179564, -1.126360811758786, 1.02381698123645);
+		circles.emplace_back(1.301292839925736, -4.456008102279156, 0.531522514228709);
+		circles.emplace_back(3.006084293592721, -0.06842501694336534, 0.9949543621158227);
+		circles.emplace_back(0.6579647003673017, -1.395301220472902, 1.558563628257252);
+		circles.emplace_back(4.395015446934849, -4.200180780608207, 0.9140325627056881);
+		circles.emplace_back(-2.155389518011361, 1.422666267026216, 0.7531856172950938);
+		circles.emplace_back(3.558722150046378, 3.556298890616745, 1.4094483503839);
+		circles.emplace_back(2.423240353818983, 3.150971366558224, 0.6067623004550113);
+		circles.emplace_back(-4.747616311069578, 3.550782992970198, 0.9201415051473304);
+		circles.emplace_back(-1.33560222806409, 2.162885901052505, 0.5356401740806177);
+		circles.emplace_back(-3.538143045734614, -4.529481793288141, 1.332992204255424);
+		circles.emplace_back(1.819704340305179, 1.310169661883265, 0.9511300957063212);
+		circles.emplace_back(0.3478826791979373, -1.32564177038148, 1.052368675428442);
+		circles.emplace_back(1.197078011464328, -0.04892208380624652, 1.185636052978225);
+		circles.emplace_back(-4.001908029895276, -1.89846089342609, 1.417718673287891);
+	}
+	result_expected = 15.98577528553132;
+
+	timer.reset();
+	result_actual = algorithm(a164, b164, circles);
+	std::cout << "time = " << timer.elapsed() << '\n';
+
+	std::cout << "test #164: " <<
+		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
+	if (verbose)
+		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
+	circles.clear();
+
+
+
 	Point a7(1, 1);
 	Point b7(9, 9);
 	circles.emplace_back(0, 0, 0.1628746463684365);
@@ -1509,10 +5083,10 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.emplace_back(10, 10, 0.3564727762481197);
 	result_expected = 13.51711753058981;
 
-	Timer timer;
+	timer.reset();
 	result_actual = algorithm(a7, b7, circles);
 	std::cout << "time = " << timer.elapsed() << '\n';
-	
+
 	std::cout << "test  #7: " <<
 		(are_equal(result_actual, result_expected) ? "ok" : "FAILED") << '\n';
 	if (verbose)
@@ -1520,7 +5094,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 
 	circles.clear();
 
-	/*
+
 	Point a8(1, 1);
 	Point b8(9, 9);
 	circles.emplace_back(0, 0, 0.3498640827136114);
@@ -3970,12 +7544,12 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
 
 	circles.clear();
-	*/
 
 
-    /*
+
+
 	Point a26(1, 1);
-	Point b26(9, 9); 
+	Point b26(9, 9);
 	{
 		circles.emplace_back(0, 0, 0.507887558103539);
 		circles.emplace_back(0, 1, 0.5364221298834309);
@@ -4095,7 +7669,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		circles.emplace_back(10, 7, 0.4333395632682368);
 		circles.emplace_back(10, 8, 0.5033273596549407);
 		circles.emplace_back(10, 9, 0.5001012664055452);
-		circles.emplace_back(10, 10, 0.5524645389290527); 
+		circles.emplace_back(10, 10, 0.5524645389290527);
 	}
 	result_expected = 11.53768059156304;
 	timer.reset();
@@ -5465,7 +9039,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		circles.emplace_back(10, 9, 0.6064354873029515);
 		circles.emplace_back(10, 10, 0.6404249407583847);
 	}
-	result_expected = 15.45628204867654;
+	result_expected = 13.4876530125745;
 	timer.reset();
 	result_actual = algorithm(a36, b36, circles);
 	std::cout << "time = " << timer.elapsed() << '\n';
@@ -5477,10 +9051,10 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 
 	circles.clear();
 
-	*/
 
 
-	/*
+
+
 	Point a37(1, 1);
 	Point b37(9, 9);
 	{
@@ -5604,7 +9178,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		circles.emplace_back(10, 9, 0.5437243265798315);
 		circles.emplace_back(10, 10, 0.3208837162004783);
 	}
-	result_expected = 15.45628204867654;
+	result_expected = 11.57936863004565;
 	timer.reset();
 	result_actual = algorithm(a37, b37, circles);
 	std::cout << "time = " << timer.elapsed() << '\n';
@@ -5879,7 +9453,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		circles.emplace_back(10, 9, 0.2873338559875265);
 		circles.emplace_back(10, 10, 0.275349404825829);
 	}
-	result_expected = 11.57936863004565;
+	result_expected = 11.66006079253472;
 	timer.reset();
 	result_actual = algorithm(a39, b39, circles);
 	std::cout << "time = " << timer.elapsed() << '\n';
@@ -6857,7 +10431,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
 
 	circles.clear();
-	
+
 
 
 
@@ -6996,10 +10570,10 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		std::cout << "expected = " << result_expected << "\nactual = " << result_actual << '\n';
 
 	circles.clear();
-	*/
 
 
-	/*
+
+
 
 	Point a48(1, 1);
 	Point b48(9, 9);
@@ -9212,7 +12786,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	circles.clear();
 
 
-	*/
+
 
 	Point a64(1, 1);
 	Point b64(9, 9);
@@ -9336,7 +12910,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 		circles.emplace_back(10, 8, 0.5160616223467513);
 		circles.emplace_back(10, 9, 0.3890228806296364);
 		circles.emplace_back(10, 10, 0.3445660648634657);
-	
+
 	}
 	result_expected = 13.79929264205633;
 	timer.reset();
@@ -10320,7 +13894,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 
 
 
-	
+
 
 
 	//=====================================================================
@@ -10939,50 +14513,30 @@ int main()
     test_double_hash();
     test_get_graph(get_graph);
 */
-
+	Timer timer;
     test_tiptoe_through_the_circles(tiptoe_through_the_circles);
+	std::cout << "all tests = \t" << timer.elapsed() << '\n';
 	//test_filter_tangents(filter_tangents_advanced);
 	std::cout << "threads: " << std::thread::hardware_concurrency() << '\n';
 
-	/*const std::vector<Circle> circles({
-		Circle(0.0,0.0,1.0),
-		Circle(0.0,0.0,2.0),
-		Circle(0.0,0.0,3.0),
-		Circle(0.0,0.0,4.0),
-		Circle(0.0,0.0,5.0),
-		});
+	std::cout << "copy = \t\t\t\t\t" << g_copy << '\n';
+	std::cout << "tangents.reserve = \t\t\t" << g_tangents_reserve << '\n';
+	std::cout << "add_tangents = \t\t\t\t" << g_add_tangents << '\n';
+	std::cout << "filter_tangents = \t\t\t" << g_filter_tangents << '\n';
+	std::cout << "get_points_on_circles = \t\t" << g_get_points_on_circles << '\n';
+	std::cout << "arcs_size = \t\t\t\t" << g_arcs_size << '\n';
+	std::cout << "arcs.reserve = \t\t\t\t" << g_arc_reserve << '\n';
+	std::cout << "add_arcs = \t\t\t\t" << g_add_arcs << '\n';
+	std::cout << "filter_arcs = \t\t\t\t" << g_filter_arcs << '\n';
+	std::cout << "graph.reserve = \t\t\t" << g_graph_reserve << '\n';
+	std::cout << "add_nodes_to_graph = \t\t\t" << g_add_nodes_to_graph << '\n';
+	std::cout << "connect_nodes_of_graph = \t\t" << g_connect_nodes_of_graph << '\n';
+	std::cout << "merge_neighbors_for_similar_nodes = \t" << g_merge_neighbors_for_similar_nodes << '\n';
+	std::cout << "graph = \t\t\t\t" << g_graph << '\n';
+	std::cout << "dijkstra = \t\t\t\t" << g_dijkstra << '\n';
 
-	const double r = 2.5;
 
-	const auto boundary = std::lower_bound(
-		circles.cbegin(),
-		circles.cend(),
-		r,
-		[](const Circle& circle, double value)->bool {
-			return circle.r < value;
-		}
-		);
-
- 	return 0;*/
+	
+ 	return 0;
 }
 
-/*
-const std::vector<Circle> circles({
-		Circle(0.0,0.0,1.0),
-		Circle(0.0,0.0,2.0),
-		Circle(0.0,0.0,3.0),
-		Circle(0.0,0.0,4.0),
-		Circle(0.0,0.0,5.0),
-	});
-
-const double r = 2.5;
-//const Circle r(0.0, 0.0, 2.5);
-const auto boundary = std::lower_bound(
-	circles.cbegin(),
-	circles.cend(),
-	r,
-	[](const Circle& circle, double value)->bool {
-		return circle.r < value;
-	}
-);
-*/
