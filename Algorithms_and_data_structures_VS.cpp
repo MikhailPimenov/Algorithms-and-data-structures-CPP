@@ -1,6 +1,7 @@
 #include <iomanip>
 #include <iostream>
 #include <thread>
+#include <future>
 
 #include "timer/timer.h"
 
@@ -48,6 +49,8 @@ double g_copy{ 0.0 };
 double g_tangents_reserve{ 0.0 };
 double g_add_tangents{ 0.0 };
 double g_filter_tangents{ 0.0 };
+double g_filter_tangents_preparation{ 0.0 };
+double g_filter_tangents_filtering{ 0.0 };
 double g_get_points_on_circles{ 0.0 };
 double g_arcs_size{ 0.0 };
 double g_arc_reserve{ 0.0 };
@@ -660,9 +663,50 @@ get_interval(double value_to_find, const std::vector<Circle>& sorted_circles) {
 }
 
 //void filter_tangents_advanced_thread(Tangents_t& tangents, )
+void filter_tangents_advanced_parallel(
+	Tangents_t &tangents, 
+	const std::vector<Circle>& circles,
+	const std::vector<Circle>& left_all,
+	const std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash>& x_ranges,
+	const std::vector<double>& x_all	
+) {
+	for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
+
+		const double left_end_of_tangent =
+			(tangent->m_a.x < tangent->m_b.x) ?
+			tangent->m_a.x :
+			tangent->m_b.x;
+
+
+		const double right_end_of_tangent =
+			(tangent->m_a.x > tangent->m_b.x) ?
+			tangent->m_a.x :
+			tangent->m_b.x; // if m_a.x and m_b.x are equal, what will be?
+
+		const auto start = get_interval(left_end_of_tangent, left_all).first;
+		const auto finish = get_interval(right_end_of_tangent, left_all).second;
+
+
+		if (there_is_collision(*tangent, circles, start, finish)) {
+			tangent = tangents.erase(tangent);
+			continue;
+		}
+
+		const auto start1_finish1 = get_interval(left_end_of_tangent, x_all);
+
+		const Circles_t& circles_covering_left_end = x_ranges.at(start1_finish1);
+
+		if (there_is_collision(*tangent, circles_covering_left_end)) {
+			tangent = tangents.erase(tangent);
+			continue;
+		}
+		++tangent;
+	}
+}
 
 void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& circles) {
 	// 4 * (n + n * log(n))
+	Timer timer;
 	const std::vector<Circle> left_all = [&]()->std::vector<Circle> {
 		std::vector<Circle> local_copy(circles);
 		std::sort(
@@ -712,40 +756,134 @@ void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& c
 		}
 	}
 	x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*x_all.cbegin(), *x_all.cbegin()), Circles_t()));
+	
+	
+	//const std::size_t threads = std::thread::hardware_concurrency();
+	const std::size_t threads = 4u;
+	const std::size_t size = tangents.size() / threads;
 
-
-	for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-
-		const double left_end_of_tangent =
-			(tangent->m_a.x < tangent->m_b.x) ? 
-			tangent->m_a.x : 
-			tangent->m_b.x;
-		
-		
-		const double right_end_of_tangent =
-			(tangent->m_a.x > tangent->m_b.x) ?
-			tangent->m_a.x :
-			tangent->m_b.x; // if m_a.x and m_b.x are equal, what will be?
-
-		const auto start = get_interval(left_end_of_tangent, left_all).first;
-		const auto finish = get_interval(right_end_of_tangent, left_all).second;
-
-
-		if (there_is_collision(*tangent, circles, start, finish)) {
-			tangent = tangents.erase(tangent);
-			continue;
+	std::vector<Tangents_t> parts;
+	parts.resize(threads);
+	auto tangent = tangents.cbegin();
+	for (auto& part : parts) {
+		part.reserve(size + threads);
+		while (part.size() < size && tangent != tangents.cend()) {
+			part.insert(*tangent);
+			++tangent;
 		}
-
-		const auto start1_finish1 = get_interval(left_end_of_tangent, x_all);
-
-		const Circles_t& circles_covering_left_end = x_ranges.at(start1_finish1);
-
-		if (there_is_collision(*tangent, circles_covering_left_end)) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-		++tangent;
 	}
+	tangents.clear();
+	
+	g_filter_tangents_preparation += timer.elapsed();
+	std::cout << "filter_tangents_preparation = \t\t" << timer.elapsed() << '\n';
+	timer.reset();
+	
+	std::vector<std::unique_ptr<std::thread>> thread_pool;
+	thread_pool.reserve(threads - 1u);
+	for (std::size_t thread = 0u; thread < threads - 1u; ++thread) {
+		thread_pool.emplace_back(std::make_unique<std::thread>(
+			filter_tangents_advanced_parallel,
+			std::ref(parts.at(thread)),
+			std::ref(circles),
+			std::ref(left_all),
+			std::ref(x_ranges),
+			std::ref(x_all)
+		));
+	}
+
+	filter_tangents_advanced_parallel(parts.at(parts.size() - 1u), circles, left_all, x_ranges, x_all);
+	for (std::size_t thread = 0u; thread < threads - 1u; ++thread) {
+		thread_pool.at(thread)->join();
+	}
+
+	for (std::size_t thread = 0u; thread < threads; ++thread) {
+		tangents.merge(parts.at(thread));
+	}
+
+
+	g_filter_tangents_filtering += timer.elapsed();
+	std::cout << "filter_tangents_filtering = \t\t" << timer.elapsed() << '\n';
+	timer.reset();
+	
+	/*
+	Tangents_t part_1, part_2, part_3, part_4;
+	const std::size_t size = tangents.size() / 4u;
+	part_1.reserve(size + 1u);
+	part_2.reserve(size + 1u);
+	part_3.reserve(size + 1u);
+	part_4.reserve(size + 1u);
+
+	auto tangent = tangents.cbegin();
+	while (part_1.size() < size && tangent != tangents.cend()) {
+		part_1.insert(*tangent);
+		tangent = tangents.erase(tangent);
+	}
+	while (part_2.size() < size && tangent != tangents.cend()) {
+		part_2.insert(*tangent);
+		tangent = tangents.erase(tangent);
+	}
+	while (part_3.size() < size && tangent != tangents.cend()) {
+		part_3.insert(*tangent);
+		tangent = tangents.erase(tangent);
+	}
+	while (tangent != tangents.cend()) {
+		part_4.insert(*tangent);
+		tangent = tangents.erase(tangent);
+	}
+
+
+	g_filter_tangents_preparation += timer.elapsed();
+	std::cout << "filter_tangents_preparation = \t\t" << timer.elapsed() << '\n';
+	timer.reset();
+
+	std::thread thread_1(
+		filter_tangents_advanced_parallel,
+		std::ref(part_1),
+		std::ref(circles),
+		std::ref(left_all),
+		std::ref(x_ranges),
+		std::ref(x_all)
+	);
+	std::thread thread_2(
+		filter_tangents_advanced_parallel,
+		std::ref(part_2),
+		std::ref(circles),
+		std::ref(left_all),
+		std::ref(x_ranges),
+		std::ref(x_all)
+	);
+	std::thread thread_3(
+		filter_tangents_advanced_parallel,
+		std::ref(part_3),
+		std::ref(circles),
+		std::ref(left_all),
+		std::ref(x_ranges),
+		std::ref(x_all)
+	);
+	std::thread thread_4(
+		filter_tangents_advanced_parallel,
+		std::ref(part_4),
+		std::ref(circles),
+		std::ref(left_all),
+		std::ref(x_ranges),
+		std::ref(x_all)
+	);
+
+
+	thread_1.join();
+	thread_2.join();
+	thread_3.join();
+	thread_4.join();
+
+	tangents.merge(part_1);
+	tangents.merge(part_2);
+	tangents.merge(part_3);
+	tangents.merge(part_4);
+
+	g_filter_tangents_filtering += timer.elapsed();
+	std::cout << "filter_tangents_filtering = \t\t" << timer.elapsed() << '\n';
+	timer.reset();
+	*/
 }
 
 // returns true if arc can not exist because circle covers it (or its part)
@@ -1055,6 +1193,7 @@ void add_nodes_to_graph(Graph_t& graph, const Points_on_circles_t& points_on_cir
 		for (const auto& point : points_on_circle) {
 			if (graph.find(point) == graph.cend())
 				graph.insert(std::pair<Vertex_t, Vertices_t>(point, Vertices_t()));
+
 		}
 	}
 }
@@ -14496,6 +14635,24 @@ void test_filter_tangents(void (*algorithm)(Tangents_t&, const std::vector<Circl
 	circles.clear();
 }
 
+void exclude_numbers(std::unordered_set<int>& numbers, const std::vector<int>& numbers_to_exclude) {
+	std::cout << "statring: " << std::this_thread::get_id() << '\n';
+	for (auto number = numbers.cbegin(); number != numbers.cend();) {
+		bool exclude{ false };
+		for (int number_to_exclude : numbers_to_exclude) {
+			if (*number == number_to_exclude) {
+				exclude = true;
+				break;
+			}
+		}
+		if (exclude) {
+			number = numbers.erase(number);
+			continue;
+		}
+		++number;
+	}
+	std::cout << "finishing: " << std::this_thread::get_id() << '\n';
+}
 
 int main()
 {
@@ -14523,6 +14680,8 @@ int main()
 	std::cout << "tangents.reserve = \t\t\t" << g_tangents_reserve << '\n';
 	std::cout << "add_tangents = \t\t\t\t" << g_add_tangents << '\n';
 	std::cout << "filter_tangents = \t\t\t" << g_filter_tangents << '\n';
+	std::cout << "filter_tangents_preparation = \t\t" << g_filter_tangents_preparation << '\n';
+	std::cout << "filter_tangents_filtering = \t\t" << g_filter_tangents_filtering << '\n';
 	std::cout << "get_points_on_circles = \t\t" << g_get_points_on_circles << '\n';
 	std::cout << "arcs_size = \t\t\t\t" << g_arcs_size << '\n';
 	std::cout << "arcs.reserve = \t\t\t\t" << g_arc_reserve << '\n';
@@ -14534,9 +14693,182 @@ int main()
 	std::cout << "merge_neighbors_for_similar_nodes = \t" << g_merge_neighbors_for_similar_nodes << '\n';
 	std::cout << "graph = \t\t\t\t" << g_graph << '\n';
 	std::cout << "dijkstra = \t\t\t\t" << g_dijkstra << '\n';
+	/*
+	std::srand(44);
 
+	const std::size_t length = 10000;
+	std::unordered_set<int> set, set_threads;
+	
+	std::vector<int> exclude, exclude_1, exclude_2, exclude_3, exclude_4;
+	for (int i = 10 * length; i >= length - 20; --i) {
+		exclude.push_back(i * i);
+	}
+	exclude_1 = exclude;
+	exclude_2 = exclude;
+	exclude_3 = exclude;
+	exclude_4 = exclude;
+
+	const int amount_of_tests = 10;
+	double one_thread_average{ 0.0 };
+	double threads_preparation{ 0.0 };
+	double threads_creation{ 0.0 };
+	double threads_execution{ 0.0 };
+	double threads_merging{ 0.0 };
+	double threads_average{ 0.0 };
+
+	for (int i = 0; i < amount_of_tests; ++i) {
+		std::srand(i);
+		for (int i = 0; i < length; ++i) {
+			const int number = std::rand();
+			set.insert(number);
+			set_threads.insert(number);
+		}
+
+
+		timer.reset();
+		exclude_numbers(set, exclude);
+		one_thread_average += timer.elapsed();
+		std::cout << "one thread = \t\t" << timer.elapsed() << '\n';
+	
+	
 
 	
- 	return 0;
+		
+		timer.reset();
+		//const std::size_t threads = std::thread::hardware_concurrency(); // 4 cores -> 4 threades
+		const std::size_t threads = 4;
+		const std::size_t size = set_threads.size() / threads;
+		
+		std::vector<std::unordered_set<int>> parts;
+		parts.resize(threads);
+		auto number = set_threads.cbegin();
+		for (auto& part : parts) {
+			part.reserve(size + threads);
+			while (part.size() < size + threads && number != set_threads.cend()) {
+				part.insert(*number);
+				++number;
+			}
+		}
+		set_threads.clear();
+		
+		std::vector<std::unique_ptr<std::thread>> thread_pool;
+		thread_pool.reserve(threads - 1u);
+
+		
+
+		
+
+		//std::unordered_set<int> part_1, part_2, part_3, part_4;
+
+
+
+		//part_1.reserve(size);
+		//part_2.reserve(size + 2u);
+		//part_3.reserve(size + 3u);
+		//part_4.reserve(size + 4u);
+
+		//auto number = set_threads.cbegin();
+		//while (part_1.size() < size && number != set_threads.cend()) {
+			//part_1.insert(*number);
+			//++number;
+			//number = set_threads.erase(number);
+		//}
+		//while (part_2.size() < size && number != set_threads.cend()) {
+			//part_2.insert(*number);
+			//++number;
+			//number = set_threads.erase(number);
+		//}
+		//while (part_2.size() < size && number != set_threads.cend()) {
+			//part_3.insert(*number);
+			//++number;
+			//number = set_threads.erase(number);
+		//}
+		//while (number != set_threads.cend()) {
+			//part_4.insert(*number);
+			//++number;
+			//number = set_threads.erase(number);
+		//}
+		//set_threads.clear();
+
+		threads_preparation += timer.elapsed();
+		std::cout << "four threads preparation = \t\t" << timer.elapsed() << '\n';
+		timer.reset();
+		
+		std::cout << "created thread_1:\n";
+		//std::thread thread_1(exclude_numbers, std::ref(part_1), std::ref(exclude_1));
+		//std::cout << "created thread_2:\n";
+		//std::thread thread_2(exclude_numbers, std::ref(part_2), std::ref(exclude_2));
+		//std::cout << "created thread_3:\n";
+		//std::thread thread_3(exclude_numbers, std::ref(part_3), std::ref(exclude_3));
+		//std::thread thread_4(exclude_numbers, std::ref(part_4), std::ref(exclude));
+		
+		//std::future<void> f1 = std::async(std::launch::async, exclude_numbers, std::ref(part_1), std::ref(exclude_1));
+		//std::future<void> f2 = std::async(std::launch::async, exclude_numbers, std::ref(part_2), std::ref(exclude_2));
+		//std::future<void> f3 = std::async(std::launch::async, exclude_numbers, std::ref(part_3), std::ref(exclude_3));
+		
+		for (std::size_t thread = 0; thread < threads - 1u; ++thread) {
+			thread_pool.push_back(std::make_unique<std::thread>(
+				exclude_numbers,
+				std::ref(parts.at(thread)),
+				std::ref(exclude)
+				));
+		}
+
+		
+
+		threads_creation += timer.elapsed();
+		std::cout << "four threads thread creating = \t\t" << timer.elapsed() << '\n';
+		timer.reset();
+
+		//std::cout << "executing main thread:\n";
+		//exclude_numbers(part_4, exclude_4);
+
+		//thread_1.join();
+		//thread_2.join();
+		//thread_3.join();
+		//thread_4.join();
+		exclude_numbers(parts.at(parts.size() - 1u), exclude);
+
+		for (std::size_t thread = 0; thread < threads - 1u; ++thread) {
+			thread_pool.at(thread)->join();
+		}
+
+
+		threads_execution += timer.elapsed();
+		std::cout << "four threads execution = \t\t" << timer.elapsed() << '\n';
+		timer.reset();
+
+		//set_threads.merge(part_1);
+		//set_threads.merge(part_2);
+		//set_threads.merge(part_3);
+		//set_threads.merge(part_4);
+
+		for (std::size_t thread = 0; thread < threads; ++thread) {
+			set_threads.merge(parts.at(thread));
+		}
+
+
+		threads_merging += timer.elapsed();
+		std::cout << "four threads merging = \t\t\t" << timer.elapsed() << '\n';
+		timer.reset();
+
+		std::cout << (set == set_threads ? "ok" : "FAILED") << '\n';
+	}
+	threads_average = threads_preparation + threads_creation + threads_execution + threads_merging;
+
+
+
+	std::cout << "threads_preparation_average =\t" << threads_preparation / amount_of_tests << '\n';
+	std::cout << "threads_creation_average =\t" << threads_creation / amount_of_tests << '\n';
+	std::cout << "threads_execution_average =\t" << threads_execution / amount_of_tests << '\n';
+	std::cout << "threads_merging_average =\t" << threads_merging / amount_of_tests << "\n\n";
+	
+	
+	std::cout << "one thread average =\t" << one_thread_average / amount_of_tests << '\n';
+	std::cout << "threads_average =\t\t" << threads_average / amount_of_tests << '\n';
+	
+	std::cout << "time advantage = \t\t" << one_thread_average / threads_average << '\n';
+	*/
+	return 0;
 }
 
