@@ -1,7 +1,5 @@
 #include <iomanip>
 #include <iostream>
-#include <thread>
-#include <future>
 
 #include "timer/timer.h"
 
@@ -39,9 +37,7 @@
 
 
 #include <cmath>
-#include <deque>
 #include <queue>
-#include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -244,13 +240,6 @@ struct Tangent {
 	}
 };
 
-// computes hash for Tangent. This is needed for data structures
-struct Tangent_hash {
-	std::size_t operator()(const Tangent& obj) const noexcept {
-		return Point_hash::call(obj.m_a) +
-			Point_hash::call(obj.m_b);										// symmetrical : hash(Tangent(a,b)) = hash(Tangent(b,a))
-	}
-};
 
 // returns true if tangent_1 == tangent_2
 bool operator==(const Tangent& tangent_1, const Tangent& tangent_2) noexcept {
@@ -322,15 +311,6 @@ struct Arc {
 	}
 };
 
-// computes hash for Arc. This is needed for data structures
-struct Arc_hash {
-	std::size_t operator()(const Arc& obj) const noexcept {
-		return Point_hash::call(obj.m_a) +
-			   Point_hash::call(obj.m_b) +
-			   std::hash<double>{}(obj.m_length);
-	}
-};
-
 // returns true if arc_1 == arc_2
 bool operator==(const Arc& arc_1, const Arc& arc_2) noexcept {
 	return arc_1.m_a == arc_2.m_a &&
@@ -343,8 +323,8 @@ bool operator!=(const Arc& arc_1, const Arc& arc_2) noexcept {
 	return !(arc_1 == arc_2);
 }
 
-
-
+// prototype for compare class for priority queue for Dijkstra algorithm
+struct Greater_pair_vertex_distance;
 
 // Data structures =====================================================================
 
@@ -353,21 +333,14 @@ using Length_t = double;
 // hashing length
 using Length_t_hash = Double_hash;
 // to store tangents
-using Tangents_t = std::unordered_set<Tangent, Tangent_hash>;
-// to add and filter tangents simultaneously
-using Tangents_queue_t = std::deque<Tangent>;
+using Tangents_t = std::vector<Tangent>;
 
-// to store arcs
-using Arcs_t = std::unordered_set<Arc, Arc_hash>;
 // to store points
 using Points_t = std::unordered_set<Point, Point_hash>;
 // to store points according to circle they belong to
-//using Points_on_circles_t = std::unordered_map<Circle, Points_t, Circle_hash>;
 using Points_on_circles_t = std::unordered_map<Circle, std::vector<Point>, Circle_hash>;
 // to store circles
 using Circles_t = std::unordered_set<Circle, Circle_hash>;
-// to store potentially colliding circles relatively to tangents between certain pair of circles
-using Colliding_circles_with_tangent_t = std::unordered_map<std::pair<Circle, Circle>, Circles_t, Pair_circle_hash>;
 // to store potentially colliding circles relatively to all arcs of certain circle
 using Colliding_circles_with_arc_t = std::unordered_map<Circle, Circles_t, Circle_hash>;
 // node type for graph
@@ -376,12 +349,21 @@ using Vertex_t = Point;
 using Vertex_t_hash = Point_hash;
 // to store neighbors for the node in the graph with the cost (distance) of the edges
 using Vertices_t = std::unordered_multimap<Vertex_t, Length_t, Vertex_t_hash>;
-// queue - it is needed for dijkstra algorithm (breadth first search)
-using Queue_t = std::deque<Vertex_t>;
-// to store shortest distances - for dijkstra algorithm
+// to store shortest distances - for Dijkstra algorithm
 using Distances_t = std::unordered_map<Vertex_t, Length_t, Vertex_t_hash>;;
-// to store graph - for dijkstra algorithm
+// to store graph - for Dijkstra algorithm
 using Graph_t = std::unordered_map<Vertex_t, Vertices_t, Vertex_t_hash>;
+// to store vertex and its distance in priority queue for Dijkstra algorithm
+using Pair_vertex_distance_t = std::pair<Vertex_t, Length_t>;
+// queue - it is needed for Dijkstra algorithm (breadth first search)
+using Queue_t = std::priority_queue<Pair_vertex_distance_t, std::vector<Pair_vertex_distance_t>, Greater_pair_vertex_distance>;
+
+// compare class for priority queue for Dijkstra algorithm
+struct Greater_pair_vertex_distance {
+	bool operator()(const Pair_vertex_distance_t& left, const Pair_vertex_distance_t& right) const noexcept {
+		return left.second > right.second;
+	}
+};
 
 
 // Logic to build a graph =======================================================
@@ -441,124 +423,8 @@ bool there_is_collision_between_tangent_and_circle(const Tangent& tangent, const
 	return true;
 }
 
-void there_is_collision_between_tangent_and_circles(const Tangent& tangent, const std::vector<Circle>& circles, std::atomic_bool& no_collision) {
-	for (const auto& circle : circles) {
-		if (no_collision) {
-			if (circle != *tangent.m_circle_a && circle != *tangent.m_circle_b) {
-				if (there_is_collision_between_tangent_and_circle(tangent, circle)) {
-					no_collision = false;
-					return;
-				}
-			}
-			continue;
-		}
-		return;
-	}
-}
-
-//bool is_tangent_existing(const Tangent& tangent, const std::vector<Circle>& circles) {
-//	const std::size_t size = circles.size();
-//
-//	std::vector<Circle> part_1;
-//	part_1.reserve(size / 4u + 1u);
-//	std::vector<Circle> part_2;
-//	part_2.reserve(size / 4u + 1u);
-//	std::vector<Circle> part_3;
-//	part_3.reserve(size / 4u + 1u);
-//	std::vector<Circle> part_4;
-//	part_4.reserve(size / 4u + 1u);
-//
-//	for (std::size_t index = 0u; index < size / 4u; ++index)
-//		part_1.push_back(circles[index]);
-//	for (std::size_t index = size / 4u; index < size / 2u; ++index)
-//		part_2.push_back(circles[index]);
-//	for (std::size_t index = size / 2u; index < 3u * size / 4u; ++index)
-//		part_3.push_back(circles[index]);
-//	for (std::size_t index = 3u * size / 4u; index < size; ++index)
-//		part_4.push_back(circles[index]);
-//
-//	std::atomic_bool no_collision{ true };
-//
-//	std::thread thread_1(there_is_collision_between_tangent_and_circles, std::ref(tangent), std::ref(part_1), std::ref(no_collision));
-//	std::thread thread_2(there_is_collision_between_tangent_and_circles, std::ref(tangent), std::ref(part_2), std::ref(no_collision));
-//	std::thread thread_3(there_is_collision_between_tangent_and_circles, std::ref(tangent), std::ref(part_3), std::ref(no_collision));
-//	std::thread thread_4(there_is_collision_between_tangent_and_circles, std::ref(tangent), std::ref(part_4), std::ref(no_collision));
-//
-//	thread_1.join();
-//	thread_2.join();
-//	thread_3.join();
-//	thread_4.join();
-//	
-//	return no_collision;
-//}
-
-// returns all circles which can potentially collide with tangents between certain pair of circles
-Colliding_circles_with_tangent_t get_colliding_circles_with_tangents(const std::vector<Circle>& circles) {
-	Colliding_circles_with_tangent_t colliding_circles;
-	colliding_circles.reserve((circles.size() * (circles.size() - 1u)));
-
-	for (auto circle_1 = circles.cbegin();
-		circle_1 != circles.cend();
-		++circle_1)
-	{
-		for (auto circle_2 = circle_1 + 1u;
-			circle_2 != circles.cend();
-			++circle_2)
-		{
-			const std::pair<Circle, Circle> pair(*circle_1, *circle_2);
-			colliding_circles.emplace(
-				std::pair<std::pair<Circle, Circle>, Circles_t>(pair, Circles_t()));
-			colliding_circles.at(pair).reserve(circles.size());
-
-			const double radius = ((circle_1->r > circle_2->r) ? circle_1->r : circle_2->r);
-			const Tangent line(circle_1->ctr, circle_2->ctr, *circle_1, *circle_2);
-
-			for (auto circle = circles.cbegin();
-				circle != circles.cend();
-				++circle)
-			{
-				if ((*circle != *circle_1) && (*circle != *circle_2)) {
-					//const double distance =	get_distance(*circle, line);
-
-					//Timer timer;
-					//const bool is_close_to_line = (distance < radius + circle->r || are_equal(distance, radius + circle->r));
-					//const bool is_between_circles = is_point_between_points(circle->ctr, circle_1->ctr, circle_2->ctr);
-					//const bool is_close_to_circles = (get_distance(circle->ctr, circle_1->ctr) < circle->r + circle_1->r) ||
-													 //(get_distance(circle->ctr, circle_2->ctr) < circle->r + circle_2->r);
-
-					colliding_circles.at(pair).emplace(*circle);
-
-					//if (is_close_to_line && (is_between_circles || is_close_to_circles))
-						//colliding_circles.at(pair).emplace(*circle);
-					//if (is_close_to_line)
-						//colliding_circles.at(pair).emplace(*circle);
-				
-					//std::cout << "inside cycle = " << timer.elapsed() << '\n';
-				}
-			}
-		}
-	}
-
-	return colliding_circles;
-}
-
-// removes all the tangents which can not exist
-void filter_tangents(Tangents_t& tangents, const std::vector<Circle>& circles) {
-	for (const auto& circle : circles) {
-		for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-			if (*(tangent->m_circle_a) != circle && *(tangent->m_circle_b) != circle) {
-				if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
-					tangent = tangents.erase(tangent);
-					continue;
-				}
-			}
-			++tangent;
-		}
-	}
-}
-
-
-bool there_is_collision(const Tangent& tangent, const std::vector<Circle>& circles) {
+// returns true if at least one circle from the group covers tangent or its part
+bool there_is_collision_between_tangent_and_group_of_circles(const Tangent& tangent, const std::vector<Circle>& circles) {
 	for (const auto& circle : circles) {
 		if (circle != *tangent.m_circle_a && circle != *tangent.m_circle_b) {
 			if (there_is_collision_between_tangent_and_circle(tangent, circle))
@@ -568,9 +434,9 @@ bool there_is_collision(const Tangent& tangent, const std::vector<Circle>& circl
 	return false;
 }
 
-bool there_is_collision(
-	const Tangent& tangent, 
-	const std::vector<Circle>& circles, 
+// returns true if at least one circle from the group covers tangent or its part
+bool there_is_collision_between_tangent_and_group_of_circles(
+	const Tangent& tangent,
 	const std::vector<Circle>::const_iterator &cbegin, 
 	const std::vector<Circle>::const_iterator &cend
 ) {
@@ -583,7 +449,9 @@ bool there_is_collision(
 	}
 	return false;
 }
-bool there_is_collision(const Tangent& tangent, const Circles_t& circles) {
+
+// returns true if at least one circle from the group covers tangent or its part
+bool there_is_collision_between_tangent_and_group_of_circles(const Tangent& tangent, const Circles_t& circles) {
 	for (const auto& circle : circles) {
 		if (circle != *tangent.m_circle_a && circle != *tangent.m_circle_b) {
 			if (there_is_collision_between_tangent_and_circle(tangent, circle))
@@ -591,35 +459,6 @@ bool there_is_collision(const Tangent& tangent, const Circles_t& circles) {
 		}
 	}
 	return false;
-}
-
-// removes all the tangents which can not exist
-void filter_tangents_fast(Tangents_t& tangents, const std::vector<Circle>& circles) {
-	Timer timer;
-	const auto colliding_circles = get_colliding_circles_with_tangents(circles);
-	std::cout << "get_colliding_circles_with_tangents() \t" << timer.elapsed() << '\n';
-	//Tangents_t temp;
-	//temp.reserve(tangents.size());
-	for (auto tangent = tangents.cbegin(); tangent != tangents.cend(); ) {
-		bool there_is_collision{ false };
-		const auto& pair = std::pair<const Circle, const Circle>(*(tangent->m_circle_a), *(tangent->m_circle_b));
-		
-		for (const auto& circle : colliding_circles.at(pair)) {
-			if (there_is_collision_between_tangent_and_circle(*tangent, circle)) {
-				there_is_collision = true;
-				break;
-			}
-		}
-
-		if (there_is_collision) {
-			tangent = tangents.erase(tangent);
-			continue;
-			//temp.emplace(*tangent);
-		}
-
-		++tangent;
-	}
-	//tangents = std::move(temp);
 }
 
 struct Pair_double_hash {
@@ -633,7 +472,6 @@ struct Pair_double_hash {
 		return instance(obj);
 	}
 };
-
 
 std::pair<double, double> get_interval(double value_to_find, const std::vector<double>& sorted_values) {
 	const auto right = std::upper_bound(
@@ -671,41 +509,6 @@ get_interval(double value_to_find, const std::vector<Circle>& sorted_circles) {
 	return std::make_pair(left, right);
 }
 
-//void filter_tangents_advanced_thread(Tangents_t& tangents, )
-bool there_is_collision_between_tangent_and_potentially_colliding_circles(
-	const Tangent &tangent, 
-	const std::vector<Circle>& circles,
-	const std::vector<Circle>& left_all,
-	const std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash>& x_ranges,
-	const std::vector<double>& x_all	
-) {
-
-	const double left_end_of_tangent =
-		(tangent.m_a.x < tangent.m_b.x) ?
-		tangent.m_a.x :
-		tangent.m_b.x;
-
-	const double right_end_of_tangent =
-		(tangent.m_a.x > tangent.m_b.x) ?
-		tangent.m_a.x :
-		tangent.m_b.x; // if m_a.x and m_b.x are equal, what will be?
-
-	const auto start = get_interval(left_end_of_tangent, left_all).first;
-	const auto finish = get_interval(right_end_of_tangent, left_all).second;
-
-
-	if (there_is_collision(tangent, circles, start, finish))
-		return true;
-
-	const auto start1_finish1 = get_interval(left_end_of_tangent, x_all);
-
-	const Circles_t& circles_covering_left_end = x_ranges.at(start1_finish1);
-
-	if (there_is_collision(tangent, circles_covering_left_end))
-		return true;
-
-	return false;
-}
 
 struct Filter_tangent_tools {
 	std::vector<Circle> m_circles_sorted_by_left_point_x;
@@ -725,13 +528,9 @@ struct Filter_tangent_tools {
 	Filter_tangent_tools() {}
 };
 
-void set_filter_tangents_tools(
-	Filter_tangent_tools& tools, 
-	const std::vector<Circle>& circles, 
-	bool& are_tools_ready,
-	std::condition_variable& cv
-) {
-	const std::vector<Circle> left_all = [&]()->std::vector<Circle> {
+Filter_tangent_tools get_filter_tangents_tools(const std::vector<Circle>& circles) {
+	Filter_tangent_tools tools;
+	const std::vector<Circle> circles_sorted_by_left_end = [&]()->std::vector<Circle> {
 		std::vector<Circle> local_copy(circles);
 		std::sort(
 			local_copy.begin(),
@@ -743,8 +542,7 @@ void set_filter_tangents_tools(
 		return local_copy;
 	}();
 
-	// 2 * n + (2 * n * log(2 * n)) = 2n + 2n*(log(n)+1) ~ 2 * n * log(n)
-	const std::vector<double> x_all = [&]()->std::vector<double> {
+	const std::vector<double> ranges_x_sorted = [&]()->std::vector<double> {
 		std::vector<double> local_copy;
 		local_copy.reserve(circles.size() * 2u);
 		for (const auto& circle : circles) {
@@ -761,228 +559,30 @@ void set_filter_tangents_tools(
 		return local_copy;
 	}();
 
-	// 2n - 1 + (2n - 1) * n ~ 2 * (n ^ 2)
-	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> x_ranges;
-	x_ranges.reserve(circles.size() * 2u - 1u);
-	for (auto x = x_all.cbegin(); x < x_all.cend() - 1u; ++x) {
-		const double left = *x;
+	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> circles_on_ranges_x;
+	circles_on_ranges_x.reserve(circles.size() * 2u - 1u);
+	for (auto x = ranges_x_sorted.cbegin(); x < ranges_x_sorted.cend() - 1u; ++x) {
+		const double left  = *x;
 		const double right = *(x + 1);
 		const std::pair<double, double> range(left, right);
-		x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(range, Circles_t()));
+		circles_on_ranges_x.insert(std::pair<std::pair<double, double>, Circles_t>(range, Circles_t()));
 
 		for (const auto& circle : circles) {
-			const double left_part = circle.ctr.x - circle.r;
+			const double left_part  = circle.ctr.x - circle.r;
 			const double right_part = circle.ctr.x + circle.r;
 			if ((left_part < right || are_equal(left_part, right)) &&
 				(right_part > left || are_equal(right_part, left)))
-				x_ranges.at(range).insert(circle);
+				circles_on_ranges_x.at(range).insert(circle);
 
 		}
 	}
-	x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*x_all.cbegin(), *x_all.cbegin()), Circles_t()));
+	circles_on_ranges_x.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*ranges_x_sorted.cbegin(), *ranges_x_sorted.cbegin()), Circles_t()));
 
-	tools.m_circles_sorted_by_left_point_x = left_all;
-	tools.m_ranges_x_sorted				   = x_all;
-	tools.m_circles_on_ranges			   = x_ranges;
+	tools.m_circles_sorted_by_left_point_x = circles_sorted_by_left_end;
+	tools.m_ranges_x_sorted				   = ranges_x_sorted;
+	tools.m_circles_on_ranges			   = circles_on_ranges_x;
 
-	are_tools_ready = true;
-	cv.notify_all();
-}
-
-void filter_tangents_advanced(Tangents_t& tangents, const std::vector<Circle>& circles) {
-	// 4 * (n + n * log(n))
-	Timer timer;
-	const std::vector<Circle> left_all = [&]()->std::vector<Circle> {
-		std::vector<Circle> local_copy(circles);
-		std::sort(
-			local_copy.begin(),
-			local_copy.end(),
-			[](const Circle& circle_1, const Circle& circle_2)->bool {
-				return (circle_1.ctr.x - circle_1.r) < (circle_2.ctr.x - circle_2.r);
-			}
-		);
-		return local_copy;
-	}();
-
-	// 2 * n + (2 * n * log(2 * n)) = 2n + 2n*(log(n)+1) ~ 2 * n * log(n)
-	const std::vector<double> x_all = [&]()->std::vector<double> {
-		std::vector<double> local_copy;
-		local_copy.reserve(circles.size() * 2u);
-		for (const auto& circle : circles) {
-			local_copy.push_back(circle.ctr.x - circle.r);
-			local_copy.push_back(circle.ctr.x + circle.r);
-		}
-		std::sort(
-			local_copy.begin(),
-			local_copy.end(),
-			[](double x_1, double x_2)->bool {
-				return x_1 < x_2;
-			}
-			);
-		return local_copy;
-	}();
-		
-	// 2n - 1 + (2n - 1) * n ~ 2 * (n ^ 2)
-	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> x_ranges;
-	x_ranges.reserve(circles.size() * 2u - 1u);
-	for (auto x = x_all.cbegin(); x < x_all.cend() - 1u; ++x) {
-		const double left = *x;
-		const double right = *(x + 1);
-		const std::pair<double, double> range(left, right);
-		x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(range, Circles_t()));
-
-		for (const auto& circle : circles) {
-			const double left_part = circle.ctr.x - circle.r;
-			const double right_part = circle.ctr.x + circle.r;
-			if ((left_part < right || are_equal(left_part, right)) &&
-				(right_part > left || are_equal(right_part, left)))
-				x_ranges.at(range).insert(circle);
-				
-		}
-	}
-	x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*x_all.cbegin(), *x_all.cbegin()), Circles_t()));
-
-	
-	g_filter_tangents_preparation += timer.elapsed();
-	std::cout << "filter_tangents_preparation = \t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-	for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-
-		const double left_end_of_tangent =
-			(tangent->m_a.x < tangent->m_b.x) ?
-			tangent->m_a.x :
-			tangent->m_b.x;
-
-
-		const double right_end_of_tangent =
-			(tangent->m_a.x > tangent->m_b.x) ?
-			tangent->m_a.x :
-			tangent->m_b.x; // if m_a.x and m_b.x are equal, what will be?
-
-		const auto start = get_interval(left_end_of_tangent, left_all).first;
-		const auto finish = get_interval(right_end_of_tangent, left_all).second;
-
-
-		if (there_is_collision(*tangent, circles, start, finish)) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-
-		const auto start1_finish1 = get_interval(left_end_of_tangent, x_all);
-
-		const Circles_t& circles_covering_left_end = x_ranges.at(start1_finish1);
-
-		if (there_is_collision(*tangent, circles_covering_left_end)) {
-			tangent = tangents.erase(tangent);
-			continue;
-		}
-		++tangent;
-	}
-	//g_filter_tangents_filtering += timer.elapsed();
-	//std::cout << "filter_tangents_filtering = \t\t" << timer.elapsed() << '\n';
-	//timer.reset();
-	
-}
-
-void filter_tangents_more_advanced(Tangents_t& tangents, Tangents_t& filtered_tangents, const std::vector<Circle>& circles) {
-	// 4 * (n + n * log(n))
-	Timer timer;
-	const std::vector<Circle> left_all = [&]()->std::vector<Circle> {
-		std::vector<Circle> local_copy(circles);
-		std::sort(
-			local_copy.begin(),
-			local_copy.end(),
-			[](const Circle& circle_1, const Circle& circle_2)->bool {
-				return (circle_1.ctr.x - circle_1.r) < (circle_2.ctr.x - circle_2.r);
-			}
-		);
-		return local_copy;
-	}();
-
-	// 2 * n + (2 * n * log(2 * n)) = 2n + 2n*(log(n)+1) ~ 2 * n * log(n)
-	const std::vector<double> x_all = [&]()->std::vector<double> {
-		std::vector<double> local_copy;
-		local_copy.reserve(circles.size() * 2u);
-		for (const auto& circle : circles) {
-			local_copy.push_back(circle.ctr.x - circle.r);
-			local_copy.push_back(circle.ctr.x + circle.r);
-		}
-		std::sort(
-			local_copy.begin(),
-			local_copy.end(),
-			[](double x_1, double x_2)->bool {
-				return x_1 < x_2;
-			}
-		);
-		return local_copy;
-	}();
-
-	// 2n - 1 + (2n - 1) * n ~ 2 * (n ^ 2)
-	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> x_ranges;
-	x_ranges.reserve(circles.size() * 2u - 1u);
-	for (auto x = x_all.cbegin(); x < x_all.cend() - 1u; ++x) {
-		const double left = *x;
-		const double right = *(x + 1);
-		const std::pair<double, double> range(left, right);
-		x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(range, Circles_t()));
-
-		for (const auto& circle : circles) {
-			const double left_part = circle.ctr.x - circle.r;
-			const double right_part = circle.ctr.x + circle.r;
-			if ((left_part < right || are_equal(left_part, right)) &&
-				(right_part > left || are_equal(right_part, left)))
-				x_ranges.at(range).insert(circle);
-
-		}
-	}
-	x_ranges.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*x_all.cbegin(), *x_all.cbegin()), Circles_t()));
-
-
-	g_filter_tangents_preparation += timer.elapsed();
-	std::cout << "filter_tangents_preparation = \t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-	for (auto tangent = tangents.cbegin(); tangent != tangents.cend();) {
-
-		const double left_end_of_tangent =
-			(tangent->m_a.x < tangent->m_b.x) ?
-			tangent->m_a.x :
-			tangent->m_b.x;
-
-
-		const double right_end_of_tangent =
-			(tangent->m_a.x > tangent->m_b.x) ?
-			tangent->m_a.x :
-			tangent->m_b.x; // if m_a.x and m_b.x are equal, what will be?
-
-		const auto start = get_interval(left_end_of_tangent, left_all).first;
-		const auto finish = get_interval(right_end_of_tangent, left_all).second;
-
-
-		if (there_is_collision(*tangent, circles, start, finish)) {
-			//tangent = tangents.erase(tangent);
-			++tangent;
-			continue;
-		}
-
-		const auto start1_finish1 = get_interval(left_end_of_tangent, x_all);
-
-		const Circles_t& circles_covering_left_end = x_ranges.at(start1_finish1);
-
-		if (there_is_collision(*tangent, circles_covering_left_end)) {
-			//tangent = tangents.erase(tangent);
-			++tangent;
-			continue;
-		}
-
-		filtered_tangents.insert(*tangent);
-		++tangent;
-	}
-	//g_filter_tangents_filtering += timer.elapsed();
-	//std::cout << "filter_tangents_filtering = \t\t" << timer.elapsed() << '\n';
-	//timer.reset();
-
+	return tools;
 }
 
 
@@ -1045,27 +645,6 @@ Colliding_circles_with_arc_t get_colliding_circles_with_arc(const std::vector<Ci
 	return colliding_circles;
 }
 
-// removes all the arcs which can not exist
-void filter_arcs_fast(Arcs_t& arcs, const std::vector<Circle>& circles) {
-	const auto colliding_circles = get_colliding_circles_with_arc(circles);
-	for (auto arc = arcs.cbegin(); arc != arcs.cend(); ) {
-		bool there_is_collision { false };
-		for (const auto& circle : colliding_circles.at(*(arc->m_owner))) {
-			if (there_is_collision_between_arc_and_circle(*arc, circle)) {
-				there_is_collision = true;
-				break;
-			}
-		}
-
-		if (there_is_collision) {
-			arc = arcs.erase(arc);
-			continue;
-		}
-		
-		++arc;
-	}
-}
-
 // returns all possible tangents between these two circles
 Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 
@@ -1122,7 +701,7 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 		xo_b + r_b * std::cos(angle_sum_outer),
 		yo_b - r_b * std::sin(angle_sum_outer)
 	);
-	tangents.emplace(A_outer_1, B_outer_1, circle_a, circle_b);
+	tangents.emplace_back(A_outer_1, B_outer_1, circle_a, circle_b);
 
 
 	const Point A_outer_2(
@@ -1133,7 +712,7 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 		xo_b - r_b * std::cos(angle_subtraction_outer),
 		yo_b - r_b * std::sin(angle_subtraction_outer)
 	);
-	tangents.emplace(A_outer_2, B_outer_2, circle_a, circle_b);
+	tangents.emplace_back(A_outer_2, B_outer_2, circle_a, circle_b);
 	
 
 	if (no_inner_tangents)
@@ -1149,7 +728,7 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 		xo_b - r_b * std::cos(angle_sum_inner),
 		yo_b + r_b * std::sin(angle_sum_inner)
 	);
-	tangents.emplace(A_inner_1, B_inner_1, circle_a, circle_b);
+	tangents.emplace_back(A_inner_1, B_inner_1, circle_a, circle_b);
 
 
 	const Point A_inner_2(
@@ -1160,28 +739,10 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 		xo_b + r_b * std::cos(angle_subtraction_inner),
 		yo_b + r_b * std::sin(angle_subtraction_inner)
 	);
-	tangents.emplace(A_inner_2, B_inner_2, circle_a, circle_b);
+	tangents.emplace_back(A_inner_2, B_inner_2, circle_a, circle_b);
 
 
 	return tangents;
-}
-
-// returns all possible arcs on this circle
-Arcs_t get_arcs(const Points_t& points, const Circle& circle) {
-	Arcs_t arcs;
-	arcs.reserve(points.size() * (points.size() - 1u));
-
-	for (const auto& point_a : points) {
-		for (const auto& point_b : points) {
-			if (point_a != point_b) {
-			//if (Point_hash::call(point_a) != Point_hash::call(point_b)) {
-				arcs.emplace(point_a, point_b, circle);
-				arcs.emplace(point_b, point_a, circle);
-			}
-		}
-	}
-
-	return arcs;
 }
 
 // calculates distance which can not be exceeded during passing through this graph 
@@ -1192,39 +753,6 @@ double get_unreachable_maximum(const Graph_t& graph) {
 			maximum += distance;
 
 	return maximum * 10.0;
-}
-
-// dijkstra algorithm
-double dijkstra_tiptoe(const Graph_t& graph, const Vertex_t& start, const Vertex_t& finish) {
-	// modification for this particular task: 
-	// if there is no tangent to start and/or finish point(s), 
-	// it is (they are) not included in the graph 
-	if (graph.find(start) == graph.cend() || graph.find(finish) == graph.cend())
-		return -1.0;
-
-	const double maximum = get_unreachable_maximum(graph);
-
-	Distances_t distances;
-	for (const auto& [vertex, _] : graph)
-		distances.insert(std::pair<Vertex_t, double>(vertex, maximum));
-
-	distances.at(start) = 0.0;
-
-	Queue_t queue; // may be use priority queue
-	queue.push_back(start);
-
-	while (!queue.empty()) {
-		const auto vertex = queue.front();
-		queue.pop_front();
-
-		for (const auto& [neighbor, edge_weight] : graph.at(vertex)) {
-			if (distances.at(vertex) + edge_weight < distances.at(neighbor)) {
-				distances.at(neighbor) = distances.at(vertex) + edge_weight;
-				queue.push_back(neighbor);
-			}
-		}
-	}
-	return are_equal(distances.at(finish), maximum) ? -1.0 : distances.at(finish);
 }
 
 // dijkstra algorithm
@@ -1243,17 +771,7 @@ double dijkstra_tiptoe_priority_queue(const Graph_t& graph, const Vertex_t& star
 
 	distances.at(start) = 0.0;
 
-	const auto compare = [](
-		const std::pair<Vertex_t, Length_t>& left,
-		const std::pair<Vertex_t, Length_t>& right
-		) -> bool {
-			return left.second > right.second;
-	};
-	//Queue_t queue; // may be use priority queue
-	std::priority_queue<
-		std::pair<Vertex_t, Length_t>,
-		std::vector<std::pair<Vertex_t, Length_t>>,
-		decltype(compare)> queue(compare);
+	Queue_t queue;
 	queue.push(std::make_pair(start, 0.0));
 
 	while (!queue.empty()) {
@@ -1269,513 +787,6 @@ double dijkstra_tiptoe_priority_queue(const Graph_t& graph, const Vertex_t& star
 	}
 	return are_equal(distances.at(finish), maximum) ? -1.0 : distances.at(finish);
 }
-
-// returns all points. Key - circle which point belongs to
-//std::pair<Points_on_circles_t, std::size_t> get_points_on_circles(const Tangents_t& tangents) {
-//	Points_on_circles_t points;
-//	std::size_t size{ 0u };
-//	for (const auto& tangent : tangents) {
-//		if (points.find(*tangent.m_circle_a) == points.cend())
-//			points.insert(std::pair<Circle, Points_t>(*tangent.m_circle_a, Points_t()));
-//		if (points.find(*tangent.m_circle_b) == points.cend())
-//			points.insert(std::pair<Circle, Points_t>(*tangent.m_circle_b, Points_t()));
-//
-//		points.at(*tangent.m_circle_a).insert(tangent.m_a);
-//		++size;
-//		points.at(*tangent.m_circle_b).insert(tangent.m_b);
-//		++size;
-//	}
-//
-//	return std::make_pair(points, size);
-//}
-
-// returns all points. Key - circle which point belongs to
-std::pair<Points_on_circles_t, std::size_t> get_points_on_circles(const Tangents_t& tangents) {
-	Points_on_circles_t points;
-	std::size_t size{ 0u };
-	for (const auto& tangent : tangents) {
-		if (points.find(*tangent.m_circle_a) == points.cend())
-			points.insert(std::pair<Circle, std::vector<Point>>(*tangent.m_circle_a, std::vector<Point>()));
-		if (points.find(*tangent.m_circle_b) == points.cend())
-			points.insert(std::pair<Circle, std::vector<Point>>(*tangent.m_circle_b, std::vector<Point>()));
-
-		points.at(*tangent.m_circle_a).push_back(tangent.m_a);
-		++size;						   
-		points.at(*tangent.m_circle_b).push_back(tangent.m_b);
-		++size;
-	}
-
-	return std::make_pair(points, size);
-}
-
-// finds all tangents
-void add_tangents(Tangents_t &tangents, const std::vector<Circle>& circles) {
-	for (auto circle_1 = circles.cbegin(); circle_1 != circles.cend(); ++circle_1) {
-		for (auto circle_2 = circle_1 + 1u; circle_2 != circles.cend(); ++circle_2) {
-
-			// tangents between two circles
-			auto pair_tangents = get_tangents(*circle_1, *circle_2);
-
-			tangents.insert(pair_tangents.cbegin(), pair_tangents.cend());
-		}
-	}
-}
-
-std::mutex g_mutex;
-
-const Tangent g_empty_tangent(Point(0.0, 0.0), Point(0.0, 0.0), Circle(0.0, 0.0, 0.0), Circle(0.0, 0.0, 0.0));
-//void modify_queue(Tangents_queue_t& queue, Tangent tangent = g_empty_tangent) {
-//	std::lock_guard<std::mutex> lock(g_mutex);
-//	if (tangent == g_empty_tangent) {
-//		queue.pop_front();
-//		return;
-//	}
-//
-//	queue.push_back(tangent);
-//}
-
-// finds all tangents
-void add_tangents_parallel(Tangents_queue_t& tangents_queue, Tangents_t &tangents, const std::vector<Circle>& circles, bool& complete, std::mutex& mutex) {
-	Tangents_t tangents_group;
-	tangents_group.reserve(circles.size() * 5u);
-	for (auto circle_1 = circles.cbegin(); circle_1 != circles.cend(); ++circle_1) {
-		for (auto circle_2 = circle_1 + 1u; circle_2 != circles.cend(); ++circle_2) {
-			//std::cout << std::this_thread::get_id() << '\n';
-			// tangents between two circles
-			auto pair_tangents = get_tangents(*circle_1, *circle_2);
-			tangents_group.merge(pair_tangents);
-			std::unique_lock<std::mutex> lock(mutex);
-			//for (auto tangent = pair_tangents.cbegin(); tangent != pair_tangents.cend(); ++tangent)
-				//tangents_queue.push_back(*tangent);
-			//std::cout << "add_tangents_parallel " << std::this_thread::get_id() << "\t" << tangents_queue.size() << '\n';
-			//tangents.merge(pair_tangents);
-		}
-
-		std::unique_lock<std::mutex> lock(mutex);
-		//for (auto tangent = tangents_group.cbegin(); tangent != tangents_group.cend(); ++tangent)
-			//tangents_queue.push_back(*tangent);
-		tangents_queue.insert(tangents_queue.cend(), tangents_group.cbegin(), tangents_group.cend());
-		tangents.merge(tangents_group);
-		//std::cout << "add_tangents_parallel " << std::this_thread::get_id() << "\t" << tangents_queue.size() << '\n';
-		tangents_group.clear();
-	}
-	complete = true;
-}
-
-
-
-void filter_tangents_parallel(
-	Tangents_queue_t& tangents_queue,
-	Tangents_t& tangents,
-	const Filter_tangent_tools& tools,
-	const std::vector<Circle>& circles,
-	const bool& complete,
-	const bool& are_tools_ready,
-	std::mutex& mutex,
-	std::condition_variable& cv
-) {
-	//std::unique_lock<std::mutex> lock(mutex);
-	//cv.wait(lock, [&] { return are_tools_ready; });
-	std::size_t group_size = 100u;
-	while ( ! tangents_queue.empty() || ! complete) {
-		if (tangents_queue.size() >= group_size || complete) {
-			std::unique_lock<std::mutex> lock(mutex);
-
-			if (complete && tangents_queue.size() < group_size)
-				group_size = tangents_queue.size();
-
-			//std::cout << std::this_thread::get_id() << '\n';
-			if (tangents_queue.size() < group_size)
-				continue;
-			//const auto tangent = tangents_queue.front(); 
-			const Tangents_queue_t tangents_group(tangents_queue.cbegin(), tangents_queue.cbegin() + group_size);
-			//lock.lock();
-			for (std::size_t i = 0u; i < group_size; ++i)
-				tangents_queue.pop_front();
-
-			// does not protect because another function acceses that queue, but not this function in another thread
-			//tangents_queue.pop_front(); // may be just pop_front-function is neccesary
-			//std::cout << "filter_tangents_parallel " << std::this_thread::get_id() << "\t" << tangents_queue.size() << '\n';
-			lock.unlock();
-
-			for (auto tangent = tangents_group.cbegin(); tangent != tangents_group.cend(); ++tangent) {
-				if (
-					there_is_collision_between_tangent_and_potentially_colliding_circles(
-						*tangent,
-						circles,
-						tools.m_circles_sorted_by_left_point_x,
-						tools.m_circles_on_ranges,
-						tools.m_ranges_x_sorted
-					)) {
-					lock.lock();
-					tangents.erase(*tangent);
-					lock.unlock();
-				}
-			}
-		}
-	}
-}
-
-// returns all possible arcs on this circle
-void add_arcs_for_circle_fast(Arcs_t &arcs, const Points_t& points, const Circle& circle) {
-	//Arcs_t arcs;
-	//arcs.reserve(points.size() * (points.size() - 1u));
-
-	for (const auto& point_a : points) {
-		for (const auto& point_b : points) {
-			//if (point_a != point_b) {
-			if (Point_hash::call(point_a) != Point_hash::call(point_b)) {
-				arcs.emplace(point_a, point_b, circle);
-				arcs.emplace(point_b, point_a, circle);
-			}
-		}
-	}
-}
-
-
-
-//// removes all the arcs which can not exist
-//void filter_arcs_fast(Arcs_t& arcs, const std::vector<Circle>& circles) {
-//	const auto colliding_circles = get_colliding_circles_with_arc(circles);
-//	for (auto arc = arcs.cbegin(); arc != arcs.cend(); ) {
-//		bool there_is_collision{ false };
-//		for (const auto& circle : colliding_circles.at(*(arc->m_owner))) {
-//			if (there_is_collision_between_arc_and_circle(*arc, circle)) {
-//				there_is_collision = true;
-//				break;
-//			}
-//		}
-//
-//		if (there_is_collision) {
-//			arc = arcs.erase(arc);
-//			continue;
-//		}
-//
-//		++arc;
-//	}
-//}
-
-// returns all possible arcs on this circle and adds straight to graph
-//void add_arcs_for_circle_fast_and_for_graph(
-//	Graph_t& graph, 
-//	//Arcs_t& arcs, 
-//	const Points_t& points, 
-//	const Circle& circle,
-//	const Colliding_circles_with_arc_t& colliding_circles
-//) {
-//	//Arcs_t arcs;
-//	//arcs.reserve(points.size() * (points.size() - 1u));
-//
-//	for (const auto& point_a : points) {
-//		for (const auto& point_b : points) {
-//			//if (point_a != point_b) {
-//			if (Point_hash::call(point_a) != Point_hash::call(point_b)) {
-//				//arcs.emplace(point_a, point_b, circle);
-//				//arcs.emplace(point_b, point_a, circle);
-//
-//				bool there_is_collision{ false };
-//				const Arc ab(point_a, point_b, circle);
-//				for (const auto& colliding_circle : colliding_circles.at(circle)) {
-//					if (there_is_collision_between_arc_and_circle(ab, colliding_circle)) {
-//						there_is_collision = true;
-//						break;
-//					}
-//				}
-//				
-//				if (!there_is_collision) {
-//					graph.at(ab.m_a).emplace(std::make_pair(ab.m_b, ab.m_length));
-//					graph.at(ab.m_b).emplace(std::make_pair(ab.m_a, ab.m_length));
-//				}
-//
-//				there_is_collision = false;
-//				const Arc ba(point_b, point_a, circle);
-//				for (const auto& colliding_circle : colliding_circles.at(circle)) {
-//					if (there_is_collision_between_arc_and_circle(ba, colliding_circle)) {
-//						there_is_collision = true;
-//						break;
-//					}
-//				}
-//
-//				if (!there_is_collision) {
-//					graph.at(ba.m_a).emplace(std::make_pair(ba.m_b, ba.m_length));
-//					graph.at(ba.m_b).emplace(std::make_pair(ba.m_a, ba.m_length));
-//				}
-//									
-//			}
-//		}
-//	}
-//}
-
-// returns all possible arcs on this circle and adds straight to graph
-void add_arcs_for_circle_fast_and_for_graph(
-	Graph_t& graph,
-	//Arcs_t& arcs, 
-	const std::vector<Point>& points,
-	const Circle& circle,
-	const Colliding_circles_with_arc_t& colliding_circles
-) {
-	//Arcs_t arcs;
-	//arcs.reserve(points.size() * (points.size() - 1u));
-
-	//for (const auto& point_a : points) {
-		//for (const auto& point_b : points) {
-	for (auto point_a = points.cbegin(); point_a != points.cend(); ++point_a) {
-		for (auto point_b = point_a + 1u; point_b != points.cend(); ++point_b) {
-			//if (point_a != point_b) {
-			if (Point_hash::call(*point_a) != Point_hash::call(*point_b)) {
-				//arcs.emplace(point_a, point_b, circle);
-				//arcs.emplace(point_b, point_a, circle);
-
-				bool there_is_collision{ false };
-				const Arc ab(*point_a, *point_b, circle);
-				for (const auto& colliding_circle : colliding_circles.at(circle)) {
-					if (there_is_collision_between_arc_and_circle(ab, colliding_circle)) {
-						there_is_collision = true;
-						break;
-					}
-				}
-
-				if (!there_is_collision) {
-					graph.at(ab.m_a).emplace(std::make_pair(ab.m_b, ab.m_length));
-					graph.at(ab.m_b).emplace(std::make_pair(ab.m_a, ab.m_length));
-				}
-
-				there_is_collision = false;
-				const Arc ba(*point_b, *point_a, circle);
-				for (const auto& colliding_circle : colliding_circles.at(circle)) {
-					if (there_is_collision_between_arc_and_circle(ba, colliding_circle)) {
-						there_is_collision = true;
-						break;
-					}
-				}
-
-				if (!there_is_collision) {
-					graph.at(ba.m_a).emplace(std::make_pair(ba.m_b, ba.m_length));
-					graph.at(ba.m_b).emplace(std::make_pair(ba.m_a, ba.m_length));
-				}
-
-			}
-		}
-	}
-}
-
-// finds all arcs
-//void add_arcs(Arcs_t& arcs, const Points_on_circles_t& points_on_circles) {
-//	for (const auto& [circle, points_on_circle] : points_on_circles) {
-//		auto arcs_on_circle = get_arcs(points_on_circle, circle);
-//		arcs.insert(arcs_on_circle.cbegin(), arcs_on_circle.cend());
-//	}
-//}
-
-// finds all arcs
-//void add_arcs_fast(Arcs_t& arcs, const Points_on_circles_t& points_on_circles) {
-//	for (const auto& [circle, points_on_circle] : points_on_circles) {
-//		add_arcs_for_circle_fast(arcs, points_on_circle, circle);
-//	}
-//}
-// finds all arcs
-void add_arcs_fast_and_for_graph(
-	Graph_t& graph, 
-	Arcs_t& arcs, 
-	const Points_on_circles_t& points_on_circles, 
-	const std::vector<Circle> &circles
-) {
-	const auto colliding_circles = get_colliding_circles_with_arc(circles);
-	for (const auto& [circle, points_on_circle] : points_on_circles) {
-		add_arcs_for_circle_fast_and_for_graph(
-			graph, 
-			//arcs, 
-			points_on_circle, 
-			circle, 
-			colliding_circles
-		);
-	}
-}
-
-// adds all nodes 
-void add_nodes_to_graph(Graph_t& graph, const Points_on_circles_t& points_on_circles) {
-	for (const auto& [_, points_on_circle] : points_on_circles) {
-		for (const auto& point : points_on_circle) {
-			if (graph.find(point) == graph.cend())
-				graph.insert(std::pair<Vertex_t, Vertices_t>(point, Vertices_t()));
-
-		}
-	}
-}
-
-// unites lists of neighbors for each 'approximately' similar 
-// nodes such as Point(0.99999999999999967, 0.0) and Point(1.0, 0.0)
-void merge_neighbors_for_similar_nodes(Graph_t& graph) {
-	std::vector<std::pair<Vertex_t, Vertices_t>> graph_to_sort(graph.cbegin(), graph.cend());
-	
-	// sorting all nodes in graph - to make nodes 
-	// like Point(2.0, 0.0) and Point(1.999999999999996, 0.0) be next to each other
-	std::sort(
-		graph_to_sort.begin(),
-		graph_to_sort.end(),
-		[](
-			const std::pair<Vertex_t, Vertices_t>& vertex_and_neighbors_1, 
-			const std::pair<Vertex_t, Vertices_t>& vertex_and_neighbors_2
-			)-> bool {
-
-			// Cantor's pair - this is how points with two values (x and y) can be sorted
-			const double pair_1 =
-				(vertex_and_neighbors_1.first.x + vertex_and_neighbors_1.first.y) *
-				(vertex_and_neighbors_1.first.x + vertex_and_neighbors_1.first.y + 1.0) / 2.0 + 
-				 vertex_and_neighbors_1.first.y;
-			const double pair_2 =
-				(vertex_and_neighbors_2.first.x + vertex_and_neighbors_2.first.y) *
-				(vertex_and_neighbors_2.first.x + vertex_and_neighbors_2.first.y + 1.0) / 2.0 + 
-				 vertex_and_neighbors_2.first.y;
-
-			return pair_1 < pair_2;
-		});
-
-	// uniting and duplicating lists of neighbors for each 'approximately' similar node
-	for (auto point = graph_to_sort.begin(); point < graph_to_sort.end() - 1u; ++point) {
-		if (point->first == (point + 1u)->first) {
-			point->second.merge((point + 1u)->second);
-			(point + 1u)->second = point->second;
-
-			graph.at(point->first) = point->second;
-			graph.at((point + 1u)->first) = point->second;
-		}
-	}
-}
-
-// connects all nodes in graph according to tangents and arcs
-void connect_nodes_of_graph(Graph_t& graph, const Tangents_t& tangents, const Arcs_t& arcs) {
-	for (const auto& tangent : tangents) {
-		graph.at(tangent.m_a).insert(std::pair<Vertex_t, double>(tangent.m_b, tangent.m_length));
-		graph.at(tangent.m_b).insert(std::pair<Vertex_t, double>(tangent.m_a, tangent.m_length));
-	}
-	for (const auto& arc : arcs) {
-		graph.at(arc.m_a).insert(std::pair<Vertex_t, double>(arc.m_b, arc.m_length));
-		graph.at(arc.m_b).insert(std::pair<Vertex_t, double>(arc.m_a, arc.m_length));
-	}
-}
-
-void connect_nodes_for_tangents(Graph_t& graph, const Tangents_t& tangents, std::mutex& mutex) {
-	for (const auto& tangent : tangents) {
-		std::lock_guard<std::mutex> lock(mutex);
-		graph.at(tangent.m_a).insert(std::pair<Vertex_t, double>(tangent.m_b, tangent.m_length));
-		graph.at(tangent.m_b).insert(std::pair<Vertex_t, double>(tangent.m_a, tangent.m_length));
-	}
-}
-void connect_nodes_for_arcs(Graph_t& graph, const std::vector<Arc>& arcs, std::mutex& mutex) {
-	for (const auto& arc : arcs) {
-		std::lock_guard<std::mutex> lock(mutex);
-		graph.at(arc.m_a).insert(std::pair<Vertex_t, double>(arc.m_b, arc.m_length));
-		graph.at(arc.m_b).insert(std::pair<Vertex_t, double>(arc.m_a, arc.m_length));
-	}
-}
-void connect_nodes_of_graph_parallel(Graph_t& graph, const Tangents_t& tangents, const Arcs_t& arcs) {
-	std::mutex mutex;
-	std::thread for_tangents(
-		connect_nodes_for_tangents,
-		std::ref(graph),
-		std::ref(tangents),
-		std::ref(mutex)
-	);
-	for_tangents.join(); // check if joinable
-
-	const std::size_t threads = std::thread::hardware_concurrency() - 1u;
-	std::vector<std::vector<Arc>> parts;
-	parts.resize(threads);
-	const std::size_t size = arcs.size() / threads;
-	
-	auto arc = arcs.cbegin();
-	for (std::size_t i = 0u; i < threads; ++i) {
-		parts.at(i).reserve(size + threads);
-		while (parts.at(i).size() < size + threads && arc != arcs.cend()) {
-			parts.at(i).push_back(*arc);
-			++arc;
-		}
-	}
-
-	std::vector<std::unique_ptr<std::thread>> thread_pool;
-	thread_pool.reserve(threads);
-
-	for (std::size_t i = 0u; i < threads; ++i) {
-		thread_pool.emplace_back(std::make_unique<std::thread>(
-			connect_nodes_for_arcs,
-			std::ref(graph),
-			std::ref(parts.at(i)),
-			std::ref(mutex)
-		));
-	}
-
-	//for_tangents.join(); // check if joinable
-	for (std::size_t i = 0u; i < threads; ++i)
-		thread_pool.at(i)->join(); // check if joinable
-
-	
-}
-
-
-void add_and_filter_tangents(
-	Tangents_t& tangents, 
-	const std::vector<Circle>& circles, 
-	const bool& are_tools_ready, 
-	const Filter_tangent_tools& tools,
-	std::mutex& mutex,
-	std::condition_variable& cv
-) {
-	Timer timer;
-	bool all_tangents_added{ false };
-	Tangents_queue_t tangents_queue;
-	
-	std::thread add_tangents_thread(
-		add_tangents_parallel,
-		std::ref(tangents_queue),
-		std::ref(tangents),
-		std::ref(circles),
-		std::ref(all_tangents_added),
-		std::ref(mutex)
-	);
-
-	std::thread filter_tangents_thread_1(
-		filter_tangents_parallel,
-		std::ref(tangents_queue),
-		std::ref(tangents),
-		std::ref(tools),
-		std::ref(circles),
-		std::ref(all_tangents_added),
-		std::ref(are_tools_ready),
-		std::ref(mutex),
-		std::ref(cv)
-	);
-	std::thread filter_tangents_thread_2(
-		filter_tangents_parallel,
-		std::ref(tangents_queue),
-		std::ref(tangents),
-		std::ref(tools),
-		std::ref(circles),
-		std::ref(all_tangents_added),
-		std::ref(are_tools_ready),
-		std::ref(mutex),
-		std::ref(cv)
-	);/*
-	std::thread filter_tangents_thread_3(
-		filter_tangents_parallel,
-		std::ref(tangents_queue),
-		std::ref(tangents),
-		std::ref(tools),
-		std::ref(circles),
-		std::ref(all_tangents_added),
-		std::ref(are_tools_ready),
-		std::ref(mutex),
-		std::ref(cv)
-	);*/
-
-	add_tangents_thread.join();       // check if joinable
-	filter_tangents_thread_1.join();    // check if joinable
-	filter_tangents_thread_2.join();    // check if joinable
-	//filter_tangents_thread_3.join();    // check if joinable
-	g_add_and_filter_tangents += timer.elapsed();
-	std::cout << "add_and_filter_tangents = \t\t" << timer.elapsed() << '\n';
-}
-
 
 
 bool is_tangent_existing(
@@ -1805,7 +816,7 @@ bool is_tangent_existing(
 	).second;
 
 
-	if (there_is_collision(tangent, circles, start, finish))
+	if (there_is_collision_between_tangent_and_group_of_circles(tangent, start, finish))
 		return false;
 		
 		
@@ -1817,7 +828,7 @@ bool is_tangent_existing(
 
 	const Circles_t& circles_covering_left_end = tools.m_circles_on_ranges.at(start1_finish1);
 
-	if (there_is_collision(tangent, circles_covering_left_end))
+	if (there_is_collision_between_tangent_and_group_of_circles(tangent, circles_covering_left_end))
 		return false;
 
 	return true;
@@ -1836,31 +847,13 @@ void add_tangent_to_graph(const Tangent& tangent, Graph_t& graph) {
 	graph.at(tangent.m_b).emplace(std::make_pair(tangent.m_a, tangent.m_length));
 }
 
-// adds one tangent to graph
-void add_tangent_to_graph_parallel(const Tangent& tangent, Graph_t& graph, std::mutex& graph_mutex) {
-	std::lock_guard<std::mutex> lock(graph_mutex);
-	
-	if (graph.find(tangent.m_a) == graph.cend())
-		graph.emplace(std::make_pair(tangent.m_a, Vertices_t()));
-	graph.at(tangent.m_a).emplace(std::make_pair(tangent.m_b, tangent.m_length));
-
-	if (graph.find(tangent.m_b) == graph.cend())
-		graph.emplace(std::make_pair(tangent.m_b, Vertices_t()));
-	graph.at(tangent.m_b).emplace(std::make_pair(tangent.m_a, tangent.m_length));
-}
 
 void add_tangent_to_points_on_circles(const Tangent& tangent, Points_on_circles_t& points_on_circles) {
 	points_on_circles.at(*tangent.m_circle_a).push_back(tangent.m_a);
 	points_on_circles.at(*tangent.m_circle_b).push_back(tangent.m_b);
 }
 
-void add_tangent_to_points_on_circles_parallel(const Tangent& tangent, Points_on_circles_t& points_on_circles, std::mutex& points_on_circles_mutex) {
-	std::lock_guard<std::mutex> lock(points_on_circles_mutex);
-	points_on_circles.at(*tangent.m_circle_a).push_back(tangent.m_a);
-	points_on_circles.at(*tangent.m_circle_b).push_back(tangent.m_b);
-}
-
-void create_arcs_filter_and_add_to_graph_for_this_point(
+void create_arcs_for_this_point_filter_and_add_to_graph(
 	Graph_t& graph,
 	const Point& point,
 	const Circle& circle,
@@ -1868,92 +861,36 @@ void create_arcs_filter_and_add_to_graph_for_this_point(
 	const Colliding_circles_with_arc_t& colliding_circles
 ) {
 	for (auto another_point = points_on_circles.at(circle).cbegin();
-		another_point != points_on_circles.at(circle).cend();
-		++another_point
+		 another_point != points_on_circles.at(circle).cend();
+		 ++another_point
 		) {
-		//const Arc a(outer_1.m_a, *point, *outer_1.m_circle_a);
-		//const Arc b(outer_1.m_b, *point, *outer_1.m_circle_b);
 
 		if (Point_hash::call(*another_point) != Point_hash::call(point)) {
-			//arcs.emplace(point_a, point_b, circle);
-			//arcs.emplace(point_b, point_a, circle);
 
-			bool there_is_collision{ false };
+			bool there_is_collision_between_tangent_and_group_of_circles{ false };
 			const Arc ab(*another_point, point, circle);
 			for (const auto& colliding_circle : colliding_circles.at(circle)) {
 				if (there_is_collision_between_arc_and_circle(ab, colliding_circle)) {
-					there_is_collision = true;
+					there_is_collision_between_tangent_and_group_of_circles = true;
 					break;
 				}
 			}
 
-			if (!there_is_collision) {
+			if (!there_is_collision_between_tangent_and_group_of_circles) {
 				graph.at(ab.m_a).emplace(std::make_pair(ab.m_b, ab.m_length));
 				graph.at(ab.m_b).emplace(std::make_pair(ab.m_a, ab.m_length));
 			}
 
-			there_is_collision = false;
+			there_is_collision_between_tangent_and_group_of_circles = false;
 			const Arc ba(point, *another_point, circle);
 			for (const auto& colliding_circle : colliding_circles.at(circle)) {
 				if (there_is_collision_between_arc_and_circle(ba, colliding_circle)) {
-					there_is_collision = true;
+					there_is_collision_between_tangent_and_group_of_circles = true;
 					break;
 				}
 			}
 
-			if (!there_is_collision) {
-				graph.at(ba.m_a).emplace(std::make_pair(ba.m_b, ba.m_length));
-				graph.at(ba.m_b).emplace(std::make_pair(ba.m_a, ba.m_length));
-			}
-		}
-	}
-}
-
-void create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-	Graph_t& graph,
-	const Point& point,
-	const Circle& circle,
-	const Points_on_circles_t& points_on_circles,
-	const Colliding_circles_with_arc_t& colliding_circles,
-	std::mutex& graph_mutex
-) {
-	for (auto another_point = points_on_circles.at(circle).cbegin();
-		another_point != points_on_circles.at(circle).cend();
-		++another_point
-		) {
-		//const Arc a(outer_1.m_a, *point, *outer_1.m_circle_a);
-		//const Arc b(outer_1.m_b, *point, *outer_1.m_circle_b);
-
-		if (Point_hash::call(*another_point) != Point_hash::call(point)) {
-			//arcs.emplace(point_a, point_b, circle);
-			//arcs.emplace(point_b, point_a, circle);
-
-			bool there_is_collision{ false };
-			const Arc ab(*another_point, point, circle);
-			for (const auto& colliding_circle : colliding_circles.at(circle)) {
-				if (there_is_collision_between_arc_and_circle(ab, colliding_circle)) {
-					there_is_collision = true;
-					break;
-				}
-			}
-
-			if (!there_is_collision) {
-				std::lock_guard<std::mutex> lock(graph_mutex);
-				graph.at(ab.m_a).emplace(std::make_pair(ab.m_b, ab.m_length));
-				graph.at(ab.m_b).emplace(std::make_pair(ab.m_a, ab.m_length));
-			}
-
-			there_is_collision = false;
-			const Arc ba(point, *another_point, circle);
-			for (const auto& colliding_circle : colliding_circles.at(circle)) {
-				if (there_is_collision_between_arc_and_circle(ba, colliding_circle)) {
-					there_is_collision = true;
-					break;
-				}
-			}
-
-			if (!there_is_collision) {
-				std::lock_guard<std::mutex> lock(graph_mutex);
+			if (!there_is_collision_between_tangent_and_group_of_circles) {
 				graph.at(ba.m_a).emplace(std::make_pair(ba.m_b, ba.m_length));
 				graph.at(ba.m_b).emplace(std::make_pair(ba.m_a, ba.m_length));
 			}
@@ -1963,432 +900,46 @@ void create_arcs_filter_and_add_to_graph_for_this_point_parallel(
 
 // adds to graph all tangents and arcs which can exist between these two circles
 void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_this_pair_of_circles(
-	const Circle& circle_1, 
-	const Circle& circle_2, 
-	const Filter_tangent_tools& tools,
-	const std::vector<Circle>& circles,
-	const Colliding_circles_with_arc_t& colliding_circles_with_arc,
-	Points_on_circles_t& points_on_circles,
-	Graph_t& graph
-) {
-
-	// circles have common center - no tangents
-	if (circle_1.ctr == circle_2.ctr)
-		return;
-
-	// one circle is inside another one or have only one common point - no tangents
-	const double distance_between_circles = get_distance(circle_1.ctr, circle_2.ctr);
-	if (are_equal(distance_between_circles + circle_1.r, circle_2.r) ||
-		are_equal(distance_between_circles + circle_2.r, circle_1.r) ||
-		distance_between_circles + circle_1.r < circle_2.r ||
-		distance_between_circles + circle_2.r < circle_1.r)
-		return;
-
-	// circles intersects - no inner tangents
-	bool no_inner_tangents = false;
-	if (distance_between_circles < circle_1.r + circle_2.r ||
-		are_equal(circle_1.r + circle_2.r, distance_between_circles))
-		no_inner_tangents = true;
-
-	const auto& circle_b =
-		circle_2.ctr.y >= circle_1.ctr.y ? circle_2 : circle_1;  // upper circle
-	const auto& circle_a =
-		circle_2.ctr.y < circle_1.ctr.y ? circle_2 : circle_1;   // lower circle
-
-	const double r_a = circle_a.r;
-	const double r_b = circle_b.r;
-	const double xo_a = circle_a.ctr.x;
-	const double yo_a = circle_a.ctr.y;
-	const double xo_b = circle_b.ctr.x;
-	const double yo_b = circle_b.ctr.y;
-
-
-	const double angle_sum_outer = std::asin((r_b - r_a) / distance_between_circles) +
-		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_subtraction_outer = std::asin((r_b - r_a) / distance_between_circles) -
-		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_sum_inner = std::asin((-r_b - r_a) / distance_between_circles) +
-		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_subtraction_inner = std::asin((-r_b - r_a) / distance_between_circles) -
-		std::asin((xo_b - xo_a) / distance_between_circles);
-
-	Tangents_t tangents;
-	tangents.reserve(4u);
-
-
-	// outer tangents
-	const Point A_outer_1(
-		xo_a + r_a * std::cos(angle_sum_outer),
-		yo_a - r_a * std::sin(angle_sum_outer)
-	);
-	const Point B_outer_1(
-		xo_b + r_b * std::cos(angle_sum_outer),
-		yo_b - r_b * std::sin(angle_sum_outer)
-	);
-	const Tangent outer_1(A_outer_1, B_outer_1, circle_a, circle_b);
-	if (is_tangent_existing(outer_1, tools, circles)) {
-		add_tangent_to_graph(outer_1, graph);
-
-		add_tangent_to_points_on_circles(outer_1, points_on_circles);
-		
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			outer_1.m_a,
-			*outer_1.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			outer_1.m_b,
-			*outer_1.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-	}
-
-
-	const Point A_outer_2(
-		xo_a - r_a * std::cos(angle_subtraction_outer),
-		yo_a - r_a * std::sin(angle_subtraction_outer)
-	);
-	const Point B_outer_2(
-		xo_b - r_b * std::cos(angle_subtraction_outer),
-		yo_b - r_b * std::sin(angle_subtraction_outer)
-	);
-	const Tangent outer_2(A_outer_2, B_outer_2, circle_a, circle_b);
-	if (is_tangent_existing(outer_2, tools, circles)) {
-		add_tangent_to_graph(outer_2, graph);
-
-		add_tangent_to_points_on_circles(outer_2, points_on_circles);
-
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			outer_2.m_a,
-			*outer_2.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			outer_2.m_b,
-			*outer_2.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-	}
-
-
-	if (no_inner_tangents)
-		//return tangents;
-		return;
-
-	// inner tangents
-	const Point A_inner_1(
-		xo_a + r_a * std::cos(angle_sum_inner),
-		yo_a - r_a * std::sin(angle_sum_inner)
-	);
-	const Point B_inner_1(
-		xo_b - r_b * std::cos(angle_sum_inner),
-		yo_b + r_b * std::sin(angle_sum_inner)
-	);
-	const Tangent inner_1(A_inner_1, B_inner_1, circle_a, circle_b);
-	if (is_tangent_existing(inner_1, tools, circles)) {
-		add_tangent_to_graph(inner_1, graph);
-
-		add_tangent_to_points_on_circles(inner_1, points_on_circles);
-
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			inner_1.m_a,
-			*inner_1.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			inner_1.m_b,
-			*inner_1.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-	}
-
-
-	const Point A_inner_2(
-		xo_a - r_a * std::cos(angle_subtraction_inner),
-		yo_a - r_a * std::sin(angle_subtraction_inner)
-	);
-	const Point B_inner_2(
-		xo_b + r_b * std::cos(angle_subtraction_inner),
-		yo_b + r_b * std::sin(angle_subtraction_inner)
-	);
-	const Tangent inner_2(A_inner_2, B_inner_2, circle_a, circle_b);
-	if (is_tangent_existing(inner_2, tools, circles)) {
-		add_tangent_to_graph(inner_2, graph);
-
-		add_tangent_to_points_on_circles(inner_2, points_on_circles);
-
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			inner_2.m_a,
-			*inner_2.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point(
-			graph,
-			inner_2.m_b,
-			*inner_2.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc
-		);
-	}
-
-
-	//return tangents;
-	
-}
-
-
-// adds to graph all tangents and arcs which can exist between these two circles
-void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_this_pair_of_circles_parallel(
 	const Circle& circle_1,
 	const Circle& circle_2,
 	const Filter_tangent_tools& tools,
 	const std::vector<Circle>& circles,
 	const Colliding_circles_with_arc_t& colliding_circles_with_arc,
 	Points_on_circles_t& points_on_circles,
-	Graph_t& graph,
-	std::mutex& graph_mutex,
-	std::mutex& points_on_circles_mutex
+	Graph_t& graph
 ) {
+	const auto tangents = get_tangents(circle_1, circle_2);
 
-	// circles have common center - no tangents
-	if (circle_1.ctr == circle_2.ctr)
-		return;
+	for (auto tangent = tangents.cbegin(); tangent != tangents.cend(); ++tangent) {
+		if (is_tangent_existing(*tangent, tools, circles)) {
+			add_tangent_to_graph(
+				*tangent, 
+				graph
+			);
+			add_tangent_to_points_on_circles(
+				*tangent, 
+				points_on_circles
+			);
+			create_arcs_for_this_point_filter_and_add_to_graph(
+				graph,
+				tangent->m_a,
+				*tangent->m_circle_a,
+				points_on_circles,
+				colliding_circles_with_arc
+			);
 
-	// one circle is inside another one or have only one common point - no tangents
-	const double distance_between_circles = get_distance(circle_1.ctr, circle_2.ctr);
-	if (are_equal(distance_between_circles + circle_1.r, circle_2.r) ||
-		are_equal(distance_between_circles + circle_2.r, circle_1.r) ||
-		distance_between_circles + circle_1.r < circle_2.r ||
-		distance_between_circles + circle_2.r < circle_1.r)
-		return;
+			create_arcs_for_this_point_filter_and_add_to_graph(
+				graph,
+				tangent->m_b,
+				*tangent->m_circle_b,
+				points_on_circles,
+				colliding_circles_with_arc
+			);
 
-	// circles intersects - no inner tangents
-	bool no_inner_tangents = false;
-	if (distance_between_circles < circle_1.r + circle_2.r ||
-		are_equal(circle_1.r + circle_2.r, distance_between_circles))
-		no_inner_tangents = true;
-
-	const auto& circle_b =
-		circle_2.ctr.y >= circle_1.ctr.y ? circle_2 : circle_1;  // upper circle
-	const auto& circle_a =
-		circle_2.ctr.y < circle_1.ctr.y ? circle_2 : circle_1;   // lower circle
-
-	const double r_a = circle_a.r;
-	const double r_b = circle_b.r;
-	const double xo_a = circle_a.ctr.x;
-	const double yo_a = circle_a.ctr.y;
-	const double xo_b = circle_b.ctr.x;
-	const double yo_b = circle_b.ctr.y;
-
-
-	const double angle_sum_outer = std::asin((r_b - r_a) / distance_between_circles) +
-		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_subtraction_outer = std::asin((r_b - r_a) / distance_between_circles) -
-		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_sum_inner = std::asin((-r_b - r_a) / distance_between_circles) +
-		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_subtraction_inner = std::asin((-r_b - r_a) / distance_between_circles) -
-		std::asin((xo_b - xo_a) / distance_between_circles);
-
-	Tangents_t tangents;
-	tangents.reserve(4u);
-
-
-	// outer tangents
-	const Point A_outer_1(
-		xo_a + r_a * std::cos(angle_sum_outer),
-		yo_a - r_a * std::sin(angle_sum_outer)
-	);
-	const Point B_outer_1(
-		xo_b + r_b * std::cos(angle_sum_outer),
-		yo_b - r_b * std::sin(angle_sum_outer)
-	);
-	const Tangent outer_1(A_outer_1, B_outer_1, circle_a, circle_b);
-	if (is_tangent_existing(outer_1, tools, circles)) {
-		add_tangent_to_graph_parallel(
-			outer_1, 
-			graph, 
-			graph_mutex
-		);
-
-		add_tangent_to_points_on_circles_parallel(
-			outer_1, 
-			points_on_circles, 
-			points_on_circles_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			outer_1.m_a,
-			*outer_1.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			outer_1.m_b,
-			*outer_1.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
+		}
 	}
-
-
-	const Point A_outer_2(
-		xo_a - r_a * std::cos(angle_subtraction_outer),
-		yo_a - r_a * std::sin(angle_subtraction_outer)
-	);
-	const Point B_outer_2(
-		xo_b - r_b * std::cos(angle_subtraction_outer),
-		yo_b - r_b * std::sin(angle_subtraction_outer)
-	);
-	const Tangent outer_2(A_outer_2, B_outer_2, circle_a, circle_b);
-	if (is_tangent_existing(outer_2, tools, circles)) {
-		add_tangent_to_graph_parallel(
-			outer_2, 
-			graph, 
-			graph_mutex
-		);
-
-		add_tangent_to_points_on_circles_parallel(
-			outer_2, 
-			points_on_circles, 
-			points_on_circles_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			outer_2.m_a,
-			*outer_2.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			outer_2.m_b,
-			*outer_2.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
-	}
-
-
-	if (no_inner_tangents)
-		//return tangents;
-		return;
-
-	// inner tangents
-	const Point A_inner_1(
-		xo_a + r_a * std::cos(angle_sum_inner),
-		yo_a - r_a * std::sin(angle_sum_inner)
-	);
-	const Point B_inner_1(
-		xo_b - r_b * std::cos(angle_sum_inner),
-		yo_b + r_b * std::sin(angle_sum_inner)
-	);
-	const Tangent inner_1(A_inner_1, B_inner_1, circle_a, circle_b);
-	if (is_tangent_existing(inner_1, tools, circles)) {
-		add_tangent_to_graph_parallel(
-			inner_1, 
-			graph, 
-			graph_mutex
-		);
-
-		add_tangent_to_points_on_circles_parallel(
-			inner_1,
-			points_on_circles, 
-			points_on_circles_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			inner_1.m_a,
-			*inner_1.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			inner_1.m_b,
-			*inner_1.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
-	}
-
-
-	const Point A_inner_2(
-		xo_a - r_a * std::cos(angle_subtraction_inner),
-		yo_a - r_a * std::sin(angle_subtraction_inner)
-	);
-	const Point B_inner_2(
-		xo_b + r_b * std::cos(angle_subtraction_inner),
-		yo_b + r_b * std::sin(angle_subtraction_inner)
-	);
-	const Tangent inner_2(A_inner_2, B_inner_2, circle_a, circle_b);
-	if (is_tangent_existing(inner_2, tools, circles)) {
-		add_tangent_to_graph_parallel(
-			inner_2, 
-			graph, 
-			graph_mutex
-		);
-
-		add_tangent_to_points_on_circles_parallel(
-			inner_2, 
-			points_on_circles, 
-			points_on_circles_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			inner_2.m_a,
-			*inner_2.m_circle_a,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
-
-		create_arcs_filter_and_add_to_graph_for_this_point_parallel(
-			graph,
-			inner_2.m_b,
-			*inner_2.m_circle_b,
-			points_on_circles,
-			colliding_circles_with_arc,
-			graph_mutex
-		);
-	}
-
-
-	//return tangents;
-
 }
+
 
 
 void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph(
@@ -2413,314 +964,40 @@ void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph(
 	}
 }
 
-void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_index(
-	std::size_t start,
-	std::size_t finish,
-	const std::vector<Circle>& circles,
-	const Filter_tangent_tools& tools,
-	const Colliding_circles_with_arc_t& colliding_circles_with_arc,
-	Points_on_circles_t& points_on_circles,
-	Graph_t& graph
-	) {
-	for (std::size_t i = start; i < finish; ++i) {
-		for (std::size_t j = 0u; j < i; ++j) {
-			create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_this_pair_of_circles(
-				circles[i],
-				circles[j],
-				tools,
-				circles,
-				colliding_circles_with_arc,
-				points_on_circles,
-				graph
-			);
-		}
-	}
-}
-
-
-
-
-void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_parallel(
-	std::size_t start,
-	std::size_t finish,
-	const std::vector<Circle>& circles,
-	const Filter_tangent_tools& tools,
-	const Colliding_circles_with_arc_t& colliding_circles_with_arc,
-	Points_on_circles_t& points_on_circles,
-	Graph_t& graph,
-	std::mutex& graph_mutex,
-	std::mutex& points_on_circles_mutex
-) {
-	for (std::size_t first = start; first < finish; ++first) {
-		for (std::size_t second = 0u; second < first; ++second) {
-			create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_this_pair_of_circles_parallel(
-				circles.at(first),
-				circles.at(second),
-				tools,
-				circles,
-				colliding_circles_with_arc,
-				points_on_circles,
-				graph,
-				graph_mutex,
-				points_on_circles_mutex
-			);
-		}
-	}
-}
-
 // returns graph for this entire task
 Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
-	Timer timer;
 	// all circles with start and finish points as circles with zero radius
+	
+	// TODO: do that in individual function
 	const auto circles_copy = [&]() {
 		auto local_copy = circles;
 		local_copy.emplace_back(a, 0.0);
 		local_copy.emplace_back(b, 0.0);
 		return local_copy;
 	}();
-	g_copy += timer.elapsed();
-	std::cout << "copy = \t\t\t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
 
-	// finding all tangents between circles and start/finish points
-	Tangents_t tangents;
-	tangents.reserve(4.0 * (circles_copy.size()) * (circles_copy.size() - 1u));
-	g_tangents_reserve += timer.elapsed();
-	std::cout << "tangents.reserve() = \t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
 
-	Filter_tangent_tools tools;
-	bool are_tools_ready{ false };
-	std::condition_variable cv;
-	set_filter_tangents_tools(tools, circles, are_tools_ready, cv);
-	//std::thread set_tools_for_filtering_tangents_thread(
-		//set_filter_tangents_tools,
-		//std::ref(tools),
-		//std::ref(circles),
-		//std::ref(are_tools_ready),
-		//std::ref(cv)
-	//);
-
-	std::mutex mutex;
-
-	//add_and_filter_tangents( // 9.4, 9.75, 9.42 c // 1 thread filtering, 8.3 c // 2 threads filtering
-	//	tangents,
-	//	circles_copy,
-	//	are_tools_ready,
-	//	tools,
-	//	mutex,
-	//	cv
-	//);
-
-	//set_tools_for_filtering_tangents_thread.join(); // check if joinable()
-
+	const auto tools = get_filter_tangents_tools(circles);
 	Points_on_circles_t points_on_circles;
+	
+	// TODO: do that in individual function
 	for (const auto &circle : circles_copy) {
 		points_on_circles.emplace(std::make_pair(circle, std::vector<Point>()));
 		points_on_circles.at(circle).reserve(4u * circles_copy.size());
 	}
-	g_get_points_on_circles += timer.elapsed();
-	std::cout << "get_points_on_circles() = \t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
+	
+	
 	const auto colliding_circles_with_this_circle = get_colliding_circles_with_arc(circles_copy);
 
 	Graph_t graph;
-
-	//add_tangents(tangents, circles_copy); // 3.6 ñ, 3.9 c
-	//create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph(
-	//	circles_copy,
-	//	tools,
-	//	colliding_circles_with_this_circle,
-	//	points_on_circles,
-	//	graph
-	//);
-
-	
-	create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_index(
-		0u,
-		circles_copy.size(),
+	create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph(
 		circles_copy,
 		tools,
 		colliding_circles_with_this_circle,
 		points_on_circles,
 		graph
 	);
-	
-	
-
-	/*
-	std::mutex graph_mutex;
-	std::mutex points_on_circles_mutex;
-	std::size_t finish1 = circles_copy.size() / 2u;
-	std::size_t finish2 = static_cast<double>(circles_copy.size()) / std::sqrt(2.0);
-	std::size_t finish3 = static_cast<double>(circles_copy.size()) * std::sqrt(3.0) / 2.0;
-	std::thread t1(
-		create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_parallel,
-		0u,
-		finish1,
-		std::ref(circles_copy),
-		std::ref(tools),
-		std::ref(colliding_circles_with_this_circle),
-		std::ref(points_on_circles),
-		std::ref(graph),
-		std::ref(graph_mutex),
-		std::ref(points_on_circles_mutex)
-	);
-	
-	
-	std::thread t2(
-		create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_parallel,
-		finish1,
-		finish2,
-		std::ref(circles_copy),
-		std::ref(tools),
-		std::ref(colliding_circles_with_this_circle),
-		std::ref(points_on_circles),
-		std::ref(graph),
-		std::ref(graph_mutex),
-		std::ref(points_on_circles_mutex)
-	);
-	
-	
-	std::thread t3(
-		create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_parallel,
-		finish2,
-		finish3,
-		std::ref(circles_copy),
-		std::ref(tools),
-		std::ref(colliding_circles_with_this_circle),
-		std::ref(points_on_circles),
-		std::ref(graph),
-		std::ref(graph_mutex),
-		std::ref(points_on_circles_mutex)
-	);
-	
-	//std::thread t4(
-		//create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_parallel,
-		//finish3,
-		//circles_copy.size(),
-		//std::ref(circles_copy),
-		//std::ref(tools),
-		//std::ref(colliding_circles_with_this_circle),
-		//std::ref(points_on_circles),
-		//std::ref(graph),
-		//std::ref(graph_mutex),
-		//std::ref(points_on_circles_mutex)
-	//);
-	
-	create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_parallel(
-		finish3,
-		circles_copy.size(),
-		circles_copy,
-		tools,
-		colliding_circles_with_this_circle,
-		points_on_circles,
-		graph,
-		graph_mutex,
-		points_on_circles_mutex
-	);
-	t1.join(); // check if joinable
-	t2.join(); // check if joinable
-	t3.join(); // check if joinable
-	*/
-
-	g_add_tangents += timer.elapsed();
-	std::cout << "add_tangents() = \t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-	//std::this_thread::sleep_for(std::chrono::milliseconds(1));
-	//Timer filter_tangents_timer;
-	
-	//filter_tangents_advanced(tangents, circles); // 5.4 ñ, 5.9 c
-	//Tangents_t filtered_tangents;
-	//filtered_tangents.reserve(tangents.size() / 5u); // 4.8, 5.0, 5.07, 5.2, 5.0
-	//filter_tangents_more_advanced(tangents, filtered_tangents, circles); // 5.4 ñ
-	g_filter_tangents += timer.elapsed();
-	//std::cout << "filter_tangents() = \t\t\t" << filter_tangents_timer.elapsed() << '\n';
-	std::cout << "filter_tangents() = \t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
-	
-	//tangents = std::move(filtered_tangents);
-
-	// all points with binding to their own circles
-	//const auto points_on_circles = get_points_on_circles(tangents);
-	//const auto [points_on_circles, arcs_size] = get_points_on_circles(tangents);
-	g_get_points_on_circles += timer.elapsed();
-	std::cout << "get_points_on_circles() = \t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-	//std::size_t arcs_size{ 0u };
-	//for (const auto& [_, points] : points_on_circles) {
-		//arcs_size += points.size() * (points.size() - 1);
-	//}
-	g_arcs_size += timer.elapsed();
-	std::cout << "arcs_size = \t\t\t\t" << timer.elapsed() << '\n';
-
-	// finding all arcs
-	//Arcs_t arcs;
-	//arcs.reserve(arcs_size);
-	//arcs.reserve(tangents.size() * tangents.size());
-	g_arc_reserve += timer.elapsed();
-	std::cout << "arcs.reserve() = \t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-
-	// adding points to graph
-	//Graph_t graph;
-	//graph.reserve(tangents.size() * 2u + 2u);
-	g_graph_reserve += timer.elapsed();
-	std::cout << "graph.reserve() = \t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-	//add_nodes_to_graph(graph, points_on_circles); // 68 ms
-	g_add_nodes_to_graph += timer.elapsed();
-	std::cout << "add_nodes_to_graph() = \t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-	//add_arcs_fast_and_for_graph(graph, arcs, points_on_circles, circles);
-	g_add_arcs += timer.elapsed();
-	std::cout << "add_arcs() = \t\t\t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-
-	//add_arcs_fast(arcs, points_on_circles);
-	//g_add_arcs += timer.elapsed();
-	//std::cout << "add_arcs() = \t\t\t\t" << timer.elapsed() << '\n';
-	//timer.reset();
-
-
-	//// removing arc which can not exist
-	//filter_arcs_fast(arcs, circles); // 105 ms
-	//g_filter_arcs += timer.elapsed();
-	//std::cout << "filter_arcs() = \t\t\t" << timer.elapsed() << '\n';
-	//timer.reset();
-
-
-
-	//add_nodes_to_graph(graph, points_on_circles); // 68 ms
-	//g_add_nodes_to_graph += timer.elapsed();
-	//std::cout << "add_nodes_to_graph() = \t\t\t" << timer.elapsed() << '\n';
-	//timer.reset();
- 
-
-	// connecting points with each other according to tangent/arc they belong to
-	//connect_nodes_of_graph(graph, tangents, arcs); // 291 ms	
-	//connect_nodes_for_tangents(graph, tangents, mutex); // 291 ms	
-	//connect_nodes_of_graph_parallel(graph, tangents, arcs); // 291 ms	
-	g_connect_nodes_of_graph += timer.elapsed();
-	std::cout << "connect_nodes_of_graph() = \t\t" << timer.elapsed() << '\n';
-	timer.reset();
-
-
-	// uniting lists of neighbors for every pair of 'approximately' similar points
-	// (hash for 2.0 and for 1.99999999999999994 differs, but these points are 'approximately' same)
-	//merge_neighbors_for_similar_nodes(graph); // 319 ms
-	//g_merge_neighbors_for_similar_nodes += timer.elapsed();
-	//std::cout << "merge_neighbors_for_similar_nodes() = \t" << timer.elapsed() << '\n';
-	//timer.reset();
-
-	
+		
 	return graph;
 }
 
@@ -15595,528 +13872,12 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	*/
 }
 
-void test_filter_tangents(void (*algorithm)(Tangents_t&, const std::vector<Circle>&)) {
-	std::cout << "test_filter_tangents:\n";
 
-	std::vector<Circle> circles;
-	Tangents_t actual;
-	Tangents_t expected;
-
-	Circle c11(Point(0.0, 0.0), 2.0);
-	Circle c12(Point(4.0, 4.0), 2.0);
-	circles.push_back(c11);
-	circles.push_back(c12);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c11,
-		c12
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c11,
-		c12
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c11,
-		c12
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c11,
-		c12
-	);
-
-	expected = actual;
-
-	algorithm(actual, circles);
-	std::cout << "test  #1: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c21(Point(0.0, 0.0), 2.0);
-	Circle c22(Point(4.0, 4.0), 2.0);
-	Circle c23(Point(0.0, 0.0), 2.0);
-	Circle c24(Point(4.0, 4.0), 2.0);
-	Circle c25(Point(0.0, 0.0), 1.0);
-	Circle c26(Point(4.0, 4.0), 1.0);
-	Circle c27(Point(1.0, 1.0), 0.5);
-	Circle c28(Point(1.0, -1.0), 0.5);
-	Circle c29(Point(-1.0, -1.0), 0.5);
-	Circle c210(Point(-1.0, 1.0), 0.5);
-	Circle c211(Point(5.0, 5.0), 0.5);
-	Circle c212(Point(5.0, 3.0), 0.5);
-	Circle c213(Point(3.0, 3.0), 0.5);
-	Circle c214(Point(3.0, 5.0), 0.5);
-
-
-	circles.push_back(c21);
-	circles.push_back(c22);
-	circles.push_back(c23);
-	circles.push_back(c24);
-	circles.push_back(c25);
-	circles.push_back(c26);
-	circles.push_back(c27);
-	circles.push_back(c28);
-	circles.push_back(c29);
-	circles.push_back(c210);
-	circles.push_back(c211);
-	circles.push_back(c212);
-	circles.push_back(c213);
-	circles.push_back(c214);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c21,
-		c22
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c21,
-		c22
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c21,
-		c22
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c21,
-		c22
-	);
-
-	expected = actual;
-
-	algorithm(actual, circles);
-	std::cout << "test  #2: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c31(Point(0.0, 0.0), 2.0);
-	Circle c32(Point(4.0, 4.0), 2.0);
-	Circle c33(Point(1.0, 4.0), 0.5);
-	circles.push_back(c31);
-	circles.push_back(c32);
-	circles.push_back(c33);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c31,
-		c32
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c31,
-		c32
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c31,
-		c32
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c31,
-		c32
-	);
-
-	expected.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c31,
-		c32
-	);
-	expected.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c31,
-		c32
-	);
-	expected.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c31,
-		c32
-	);
-
-
-	algorithm(actual, circles);
-	std::cout << "test  #3: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c41(Point(0.0, 0.0), 2.0);
-	Circle c42(Point(4.0, 4.0), 2.0);
-	Circle c43(Point(1.0, 4.0), 1.0);
-	circles.push_back(c41);
-	circles.push_back(c42);
-	circles.push_back(c43);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c41,
-		c42
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c41,
-		c42
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c41,
-		c42
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c41,
-		c42
-	);
-
-	expected.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c41,
-		c42
-	);
-	expected.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c41,
-		c42
-	);
-
-
-	algorithm(actual, circles);
-	std::cout << "test  #4: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c51(Point(0.0, 0.0), 2.0);
-	Circle c52(Point(4.0, 4.0), 2.0);
-	Circle c53(Point(3.0, 5.0), 1.0);
-	circles.push_back(c51);
-	circles.push_back(c52);
-	circles.push_back(c53);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c51,
-		c52
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c51,
-		c52
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c51,
-		c52
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c51,
-		c52
-	);
-
-	expected.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c51,
-		c52
-	);
-	expected.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c51,
-		c52
-	);
-	expected.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c51,
-		c52
-	);
-
-
-	algorithm(actual, circles);
-	std::cout << "test  #5: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c61(Point(0.0, 0.0), 2.0);
-	Circle c62(Point(4.0, 4.0), 2.0);
-	Circle c63(Point(3.0, 5.0), 2.0);
-	circles.push_back(c61);
-	circles.push_back(c62);
-	circles.push_back(c63);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c61,
-		c62
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c61,
-		c62
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c61,
-		c62
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c61,
-		c62
-	);
-
-	expected.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c61,
-		c62
-	);
-	expected.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c61,
-		c62
-	);
-
-
-	algorithm(actual, circles);
-	std::cout << "test  #6: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c71(Point(0.0, 0.0), 2.0);
-	Circle c72(Point(4.0, 4.0), 2.0);
-	Circle c73(Point(2.0, 2.0), 0.5);
-	circles.push_back(c71);
-	circles.push_back(c72);
-	circles.push_back(c73);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c71,
-		c72
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c71,
-		c72
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c71,
-		c72
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c71,
-		c72
-	);
-
-	expected.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c71,
-		c72
-	);
-	expected.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c71,
-		c72
-	);
-
-
-	algorithm(actual, circles);
-	std::cout << "test  #7: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c81(Point(0.0, 0.0), 2.0);
-	Circle c82(Point(4.0, 4.0), 2.0);
-	Circle c83(Point(2.0, 2.0), 3.0);
-	circles.push_back(c81);
-	circles.push_back(c82);
-	circles.push_back(c83);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c81,
-		c82
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c81,
-		c82
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c81,
-		c82
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c81,
-		c82
-	);
-
-	algorithm(actual, circles);
-	std::cout << "test  #8: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-
-
-	Circle c91(Point(0.0, 0.0), 2.0);
-	Circle c92(Point(4.0, 4.0), 2.0);
-	Circle c93(Point(5.0, 5.0), 5.0);
-	circles.push_back(c91);
-	circles.push_back(c92);
-	circles.push_back(c93);
-
-	actual.emplace(
-		Point(2.0, 0.0),
-		Point(2.0, 4.0),
-		c91,
-		c92
-	);
-	actual.emplace(
-		Point(0.0, 2.0),
-		Point(4.0, 2.0),
-		c91,
-		c92
-	);
-	actual.emplace(
-		Point(std::sqrt(2.0), -std::sqrt(2.0)),
-		Point(4.0 + std::sqrt(2.0), 4.0 - std::sqrt(2.0)),
-		c91,
-		c92
-	);
-	actual.emplace(
-		Point(-std::sqrt(2.0), std::sqrt(2.0)),
-		Point(4.0 - std::sqrt(2.0), 4.0 + std::sqrt(2.0)),
-		c91,
-		c92
-	);
-
-	algorithm(actual, circles);
-	std::cout << "test  #9: " << (actual == expected ? "ok" : "FAILED") << '\n';
-	actual.clear();
-	expected.clear();
-	circles.clear();
-}
-
-void exclude_numbers(std::unordered_set<int>& numbers, const std::vector<int>& numbers_to_exclude) {
-	std::cout << "statring: " << std::this_thread::get_id() << '\n';
-	for (auto number = numbers.cbegin(); number != numbers.cend();) {
-		bool exclude{ false };
-		for (int number_to_exclude : numbers_to_exclude) {
-			if (*number == number_to_exclude) {
-				exclude = true;
-				break;
-			}
-		}
-		if (exclude) {
-			number = numbers.erase(number);
-			continue;
-		}
-		++number;
-	}
-	std::cout << "finishing: " << std::this_thread::get_id() << '\n';
-}
-
-void f1() {
-	for (int i = 0; i < 10; ++i) {
-		std::lock_guard<std::mutex> lock(g_mutex);
-		for (int j = 0; j < 20; ++j) {
-			std::cout << '#';
-		}
-		std::cout << '\n';
-	}
-}
-
-void f2() {
-	for (int i = 0; i < 20; ++i) {
-		std::lock_guard<std::mutex> lock(g_mutex);
-		for (int j = 0; j < 10; ++j) {
-			std::cout << '*';
-		}
-		std::cout << '\n';
-	}
-}
 
 
 int main()
 {
-/*
-    test_get_tangents(get_tangents);
-    test_get_arcs(get_arcs);
-    test_get_angle_with_x_axis(get_angle_with_x_axis);
-    test_get_arc_length(get_arc_length);
-    test_get_distance_from_line(get_distance);
-    test_is_point_between_points(is_point_between_points);
-    test_there_is_collision_between_tangent_and_circle(there_is_collision_between_tangent_and_circle);
-    test_there_is_collision_between_arc_and_circle(there_is_collision_between_arc_and_circle);
-    test_filter_tangents(filter_tangents);
-    test_filter_arcs(filter_arcs);
-    test_double_hash();
-    test_get_graph(get_graph);
-*/
+
 	Timer timer;
 	const std::size_t number_of_tests = 1u;
 	for (std::size_t i = 0u; i < number_of_tests; ++i) {
@@ -16126,9 +13887,6 @@ int main()
 	const double all_tests_time = timer.elapsed();
 	std::cout << "all tests = \t" << all_tests_time << '\n';
 	std::cout << "one full test = \t" << all_tests_time / number_of_tests << '\n';
-	//test_filter_tangents(filter_tangents_advanced);
-	std::cout << "threads: " << std::thread::hardware_concurrency() << '\n';
-
 	std::cout << "copy = \t\t\t\t\t" << g_copy / number_of_tests << '\n';
 	std::cout << "tangents.reserve = \t\t\t" << g_tangents_reserve / number_of_tests << '\n';
 	std::cout << "add_tangents = \t\t\t\t" << g_add_tangents / number_of_tests << '\n';
@@ -16147,189 +13905,7 @@ int main()
 	std::cout << "merge_neighbors_for_similar_nodes = \t" << g_merge_neighbors_for_similar_nodes / number_of_tests << '\n';
 	std::cout << "graph = \t\t\t\t" << g_graph / number_of_tests << '\n';
 	std::cout << "dijkstra = \t\t\t\t" << g_dijkstra / number_of_tests << '\n';
-	/*
-	std::srand(44);
-
-	const std::size_t length = 10000;
-	std::unordered_set<int> set, set_threads;
 	
-	std::vector<int> exclude, exclude_1, exclude_2, exclude_3, exclude_4;
-	for (int i = 10 * length; i >= length - 20; --i) {
-		exclude.push_back(i * i);
-	}
-	exclude_1 = exclude;
-	exclude_2 = exclude;
-	exclude_3 = exclude;
-	exclude_4 = exclude;
-
-	const int amount_of_tests = 10;
-	double one_thread_average{ 0.0 };
-	double threads_preparation{ 0.0 };
-	double threads_creation{ 0.0 };
-	double threads_execution{ 0.0 };
-	double threads_merging{ 0.0 };
-	double threads_average{ 0.0 };
-
-	for (int i = 0; i < amount_of_tests; ++i) {
-		std::srand(i);
-		for (int i = 0; i < length; ++i) {
-			const int number = std::rand();
-			set.insert(number);
-			set_threads.insert(number);
-		}
-
-
-		timer.reset();
-		exclude_numbers(set, exclude);
-		one_thread_average += timer.elapsed();
-		std::cout << "one thread = \t\t" << timer.elapsed() << '\n';
-	
-	
-
-	
-		
-		timer.reset();
-		//const std::size_t threads = std::thread::hardware_concurrency(); // 4 cores -> 4 threades
-		const std::size_t threads = 4;
-		const std::size_t size = set_threads.size() / threads;
-		
-		std::vector<std::unordered_set<int>> parts;
-		parts.resize(threads);
-		auto number = set_threads.cbegin();
-		for (auto& part : parts) {
-			part.reserve(size + threads);
-			while (part.size() < size + threads && number != set_threads.cend()) {
-				part.insert(*number);
-				++number;
-			}
-		}
-		set_threads.clear();
-		
-		std::vector<std::unique_ptr<std::thread>> thread_pool;
-		thread_pool.reserve(threads - 1u);
-
-		
-
-		
-
-		//std::unordered_set<int> part_1, part_2, part_3, part_4;
-
-
-
-		//part_1.reserve(size);
-		//part_2.reserve(size + 2u);
-		//part_3.reserve(size + 3u);
-		//part_4.reserve(size + 4u);
-
-		//auto number = set_threads.cbegin();
-		//while (part_1.size() < size && number != set_threads.cend()) {
-			//part_1.insert(*number);
-			//++number;
-			//number = set_threads.erase(number);
-		//}
-		//while (part_2.size() < size && number != set_threads.cend()) {
-			//part_2.insert(*number);
-			//++number;
-			//number = set_threads.erase(number);
-		//}
-		//while (part_2.size() < size && number != set_threads.cend()) {
-			//part_3.insert(*number);
-			//++number;
-			//number = set_threads.erase(number);
-		//}
-		//while (number != set_threads.cend()) {
-			//part_4.insert(*number);
-			//++number;
-			//number = set_threads.erase(number);
-		//}
-		//set_threads.clear();
-
-		threads_preparation += timer.elapsed();
-		std::cout << "four threads preparation = \t\t" << timer.elapsed() << '\n';
-		timer.reset();
-		
-		std::cout << "created thread_1:\n";
-		//std::thread thread_1(exclude_numbers, std::ref(part_1), std::ref(exclude_1));
-		//std::cout << "created thread_2:\n";
-		//std::thread thread_2(exclude_numbers, std::ref(part_2), std::ref(exclude_2));
-		//std::cout << "created thread_3:\n";
-		//std::thread thread_3(exclude_numbers, std::ref(part_3), std::ref(exclude_3));
-		//std::thread thread_4(exclude_numbers, std::ref(part_4), std::ref(exclude));
-		
-		//std::future<void> f1 = std::async(std::launch::async, exclude_numbers, std::ref(part_1), std::ref(exclude_1));
-		//std::future<void> f2 = std::async(std::launch::async, exclude_numbers, std::ref(part_2), std::ref(exclude_2));
-		//std::future<void> f3 = std::async(std::launch::async, exclude_numbers, std::ref(part_3), std::ref(exclude_3));
-		
-		for (std::size_t thread = 0; thread < threads - 1u; ++thread) {
-			thread_pool.push_back(std::make_unique<std::thread>(
-				exclude_numbers,
-				std::ref(parts.at(thread)),
-				std::ref(exclude)
-				));
-		}
-
-		
-
-		threads_creation += timer.elapsed();
-		std::cout << "four threads thread creating = \t\t" << timer.elapsed() << '\n';
-		timer.reset();
-
-		//std::cout << "executing main thread:\n";
-		//exclude_numbers(part_4, exclude_4);
-
-		//thread_1.join();
-		//thread_2.join();
-		//thread_3.join();
-		//thread_4.join();
-		exclude_numbers(parts.at(parts.size() - 1u), exclude);
-
-		for (std::size_t thread = 0; thread < threads - 1u; ++thread) {
-			thread_pool.at(thread)->join();
-		}
-
-
-		threads_execution += timer.elapsed();
-		std::cout << "four threads execution = \t\t" << timer.elapsed() << '\n';
-		timer.reset();
-
-		//set_threads.merge(part_1);
-		//set_threads.merge(part_2);
-		//set_threads.merge(part_3);
-		//set_threads.merge(part_4);
-
-		for (std::size_t thread = 0; thread < threads; ++thread) {
-			set_threads.merge(parts.at(thread));
-		}
-
-
-		threads_merging += timer.elapsed();
-		std::cout << "four threads merging = \t\t\t" << timer.elapsed() << '\n';
-		timer.reset();
-
-		std::cout << (set == set_threads ? "ok" : "FAILED") << '\n';
-	}
-	threads_average = threads_preparation + threads_creation + threads_execution + threads_merging;
-
-
-
-	std::cout << "threads_preparation_average =\t" << threads_preparation / amount_of_tests << '\n';
-	std::cout << "threads_creation_average =\t" << threads_creation / amount_of_tests << '\n';
-	std::cout << "threads_execution_average =\t" << threads_execution / amount_of_tests << '\n';
-	std::cout << "threads_merging_average =\t" << threads_merging / amount_of_tests << "\n\n";
-	
-	
-	std::cout << "one thread average =\t" << one_thread_average / amount_of_tests << '\n';
-	std::cout << "threads_average =\t\t" << threads_average / amount_of_tests << '\n';
-	
-	std::cout << "time advantage = \t\t" << one_thread_average / threads_average << '\n';
-	*/
-/*
-	std::thread t1(f1);
-	std::thread t2(f2);
-
-	t1.join();
-	t2.join();
-	*/
 	return 0;
 }
 
