@@ -36,12 +36,6 @@
 //#include "codewars/tiptoe_through_the_circles/types_tiptoe.h"
 
 
-#include <cmath>
-#include <queue>
-#include <unordered_map>
-#include <unordered_set>
-
-
 double g_copy{ 0.0 };
 double g_tangents_reserve{ 0.0 };
 double g_add_tangents{ 0.0 };
@@ -62,6 +56,13 @@ double g_graph{ 0.0 };
 double g_dijkstra{ 0.0 };
 double g_time{ 0.0 };
 
+#include <cmath>
+#include <queue>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+
 /*
 The shortest path consists of tangents and arcs. 
 The idea is to build a graph, and then to find the shortest path
@@ -70,24 +71,36 @@ Nodes in the graph - points.
 All the points are on circumeferences of circles. 
 Weight of edge (edge cost) is either the length 
 of straight line between two points in case these points are 
-the ends of tangent, or the length of the arc in case 
+the ends of the tangent, or the length of the arc in case 
 these points are on the circumeference of the same circle.
 
-The first step is to find all the tangents between every two circles.
-Two or four tangents between every two circles.
-The second step is to remove all tangents that can not exist because some
-of the circles can cover the path of the tangent (collision between tangent and circle).
-The third step is to find all the arcs between points on every circle.
-The fourth step is to remove all arcs that also can not exist because some
-of the circles can cover the curve of the arc (collision between arc and circle).
-The fifth step is to connect all the points according to what tangents and
-arcs the belong to.
-The sixth step is to find the shortest path in this graph using Dijkstra algorithm.
+Every pair of two circles is considered. For every pair all four tangents
+are found. Then these for tangents are filtered, because some of them can
+be covered with other circles. Then all points of tangents left are added
+to the graph. After that for both of the circles in the pair 
+for every two points on it arcs are found, then filtered and added to the graph. 
+Code requires refactoring.
+
+Version where all tangents between all circles are found, then all these tangents
+are filtered, then for every circle all arcs are found, and then all arcs are filtered,
+then points of tangents and arcs are added to the graph and connected - works to slow, 
+but is much easier to understand:
+
+----The first step is to find all the tangents between every two circles.
+----Two or four tangents between every two circles.
+----The second step is to remove all tangents that can not exist because some
+----of the circles can cover the path of the tangent (collision between tangent and circle).
+----The third step is to find all the arcs between points on every circle.
+----The fourth step is to remove all arcs that also can not exist because some
+----of the circles can cover the curve of the arc (collision between arc and circle).
+----The fifth step is to connect all the points according to what tangents and
+----arcs the belong to.
+----The sixth step is to find the shortest path in this graph using Dijkstra algorithm.
 
 Start point and finish point are considered as the circles with zero radius 
 Straight line between start and finish point is also considered as tangent.
 
-Time complexity: O(n^4) 
+Time complexity of slow algorithm: O(n^4) 
 Given a number of circles n:
 Number of pairs circle-circle:                   n * (n - 1) / 2,                 O(n^2)
 Number of tangents:                              4 * n * (n - 1) / 2,             O(n^2)
@@ -101,13 +114,23 @@ Filtering tangents:                              4 * n * (n - 1) / 2 * (n - 2)  
 Filtering arcs:                                  n * m * (m - 1) * (n - 1)        O(n^4)
 Complexity of Dijkstra algorithm for k nodes:                                     O(k^2) => O(n^4) 
 
-Solution may have not optimal space complexity, because some data is duplicated
-in several data structures instead of just having its pointers/references.
+Time complexity of this algorithm:
+Number of pairs circle-circle:                   n * (n - 1) / 2,                 O(n^2)
+Number of tangents:                              4 * n * (n - 1) / 2,             O(n^2)
+Number of points on each circle:                 4 * (n - 1) = m                  O(n)
+Number of arcs on each circle:                   m * (m - 1)                      O(m^2) = O(n^2)
+Number of arcs:                                  n * m * (m - 1)                  O(n^3)
+Number of points:                                n * m = k                        O(n^2)
+Number of circles to filter tangents:            < n - 2. Proportionally to the length of the tangent
+												 for short tangents << n 
+Number of circles to filter arcs :               << n                             O(n)
+												 depends on how many circles intersect the circle arc belongs to
+Filtering tangents:                                                               for short O(n^2), for long still O(n^3)
+Filtering arcs:                                                                   << O(n^4)
+												 depends on topology of circls - proportionally to how many other circles intersect some circle on average
+Complexity of Dijkstra algorithm 
+with priority queue for k nodes:                               O(k*log(Edges)) => O(n^2 * log(Edges)) -> works 1.5-2 times faster than without priority queue 
 
-Graph also has duplicated nodes because of approximation of double. 
-For example both Point(1.0, 0.0) and Point(0.99999999999999967, 0.0)
-are in graph. But both of them have the same merged list neighbours which 
-includes all the neighbors from both lists of neighbors before merging.
 */
 
 
@@ -115,20 +138,69 @@ const double g_pi = atan(1.0) * 4.0;
 
 constexpr double g_epsilon = 1e-8;
 
+
+// Data structures =====================================================================
+
+// some prototypes for data structures
+struct Tangent;
+struct Point;
+struct Circle;
+struct Double_hash;
+struct Point_hash;
+struct Circle_hash;
+struct Greater_pair_vertex_distance;
+
+// type for length
+using Length_t = double;
+// type for coordinate (same as Length_t, just to make code more readable)
+using Coordinate_t = Length_t;
+// type for angle (same as Length_t, just to make code more readable)
+using Angle_t = double;
+// hashing length
+using Length_t_hash = Double_hash;
+// to store tangents
+using Tangents_t = std::vector<Tangent>;
+// to filter tangents fast
+using Pair_x_interval = std::pair<Coordinate_t, Coordinate_t>;
+using Pair_circle_interval = std::pair<std::vector<Circle>::const_iterator, std::vector<Circle>::const_iterator>;
+// to store points
+using Points_t = std::unordered_set<Point, Point_hash>;
+// to store points according to circle they belong to
+using Points_on_circles_t = std::unordered_map<Circle, std::vector<Point>, Circle_hash>;
+// to store circles
+using Circles_t = std::unordered_set<Circle, Circle_hash>;
+// to store potentially colliding circles relatively to all arcs of certain circle
+using Colliding_circles_with_arc_t = std::unordered_map<Circle, Circles_t, Circle_hash>;
+// node type for graph
+using Vertex_t = Point;
+// hashing node
+using Vertex_t_hash = Point_hash;
+// to store neighbors for the node in the graph with the cost (distance) of the edges
+using Vertices_t = std::unordered_multimap<Vertex_t, Length_t, Vertex_t_hash>;
+// to store shortest distances - for Dijkstra algorithm
+using Distances_t = std::unordered_map<Vertex_t, Length_t, Vertex_t_hash>;;
+// to store graph - for Dijkstra algorithm
+using Graph_t = std::unordered_map<Vertex_t, Vertices_t, Vertex_t_hash>;
+// to store vertex and its distance in priority queue for Dijkstra algorithm
+using Pair_vertex_distance_t = std::pair<Vertex_t, Length_t>;
+// queue - it is needed for Dijkstra algorithm (breadth first search)
+using Queue_t = std::priority_queue<Pair_vertex_distance_t, std::vector<Pair_vertex_distance_t>, Greater_pair_vertex_distance>;
+
+
 // Types ===============================================================================
 
 // compares two double number with certain epsilon
-bool are_equal(double a, double b, double epsilon = g_epsilon) {
+bool are_equal(Length_t a, Length_t b, Length_t epsilon = g_epsilon) {
 	return a > b ? a - b < epsilon : b - a < epsilon;
 }
 
 // computes hash for double. This is needed for data structures
 struct Double_hash {
-	std::size_t operator()(double obj) const noexcept {
+	std::size_t operator()(Length_t obj) const noexcept {
 		// completely wrong, but it only creates more nodes in graph
-		return std::hash<double>{}(obj);                         
+		return std::hash<Length_t>{}(obj);
 	}
-	static std::size_t call(double obj) noexcept {
+	static std::size_t call(Length_t obj) noexcept {
 		static const Double_hash instance;
 		return instance(obj);
 	}
@@ -167,7 +239,7 @@ bool operator!=(const Point& point_1, const Point& point_2) noexcept {
 }
 
 // returns distance between two points
-double get_distance(const Point& p1, const Point& p2) {
+Length_t get_distance(const Point& p1, const Point& p2) {
 	return std::sqrt(std::pow(p1.x - p2.x, 2.0) +
 		std::pow(p1.y - p2.y, 2.0));
 }
@@ -222,7 +294,7 @@ bool operator!=(const Circle& circle_1, const Circle& circle_2) {
 struct Tangent {
 	Point m_a;
 	Point m_b;
-	double m_length;
+	Length_t m_length;
 	const Circle* m_circle_a;
 	const Circle* m_circle_b;
 
@@ -259,14 +331,14 @@ bool operator!=(const Tangent& tangent_1, const Tangent& tangent_2) noexcept {
 }
 
 // returns an angle between line(left_side, center) and positive direction of x axis
-double get_angle_with_x_axis(const Point& left_side, const Point& center) {
+Angle_t get_angle_with_x_axis(const Point& left_side, const Point& center) {
 	if (are_equal(left_side.x, center.x)) {
 		if (left_side.y < center.y)
 			return 3.0 * g_pi / 2.0;
 		return g_pi / 2.0;
 	}
 
-	const double angle = atan((left_side.y - center.y) / (left_side.x - center.x));
+	const Angle_t angle = atan((left_side.y - center.y) / (left_side.x - center.x));
 
 	if (left_side.x < center.x)
 		return angle + g_pi;
@@ -278,13 +350,13 @@ double get_angle_with_x_axis(const Point& left_side, const Point& center) {
 }
 
 // returns the length of arc
-double get_arc_length(const Point& a, const Point& b, const Circle& circle) {
+Length_t get_arc_length(const Point& a, const Point& b, const Circle& circle) {
 
-	const double angle_a = get_angle_with_x_axis(a, circle.ctr);
-	const double angle_b = get_angle_with_x_axis(b, circle.ctr);
+	const Angle_t angle_a = get_angle_with_x_axis(a, circle.ctr);
+	const Angle_t angle_b = get_angle_with_x_axis(b, circle.ctr);
 
 	// angles from 0 to 2*pi are considered
-	const double delta_angle =
+	const Angle_t delta_angle =
 		angle_a > angle_b ? angle_a - angle_b :
 		2.0 * g_pi + angle_a - angle_b;
 
@@ -296,7 +368,7 @@ double get_arc_length(const Point& a, const Point& b, const Circle& circle) {
 struct Arc {
 	Point m_a;
 	Point m_b;
-	double m_length;
+	Length_t m_length;
 	const Circle* m_owner;
 
 	Arc(
@@ -326,37 +398,6 @@ bool operator!=(const Arc& arc_1, const Arc& arc_2) noexcept {
 // prototype for compare class for priority queue for Dijkstra algorithm
 struct Greater_pair_vertex_distance;
 
-// Data structures =====================================================================
-
-// type for length
-using Length_t = double;
-// hashing length
-using Length_t_hash = Double_hash;
-// to store tangents
-using Tangents_t = std::vector<Tangent>;
-
-// to store points
-using Points_t = std::unordered_set<Point, Point_hash>;
-// to store points according to circle they belong to
-using Points_on_circles_t = std::unordered_map<Circle, std::vector<Point>, Circle_hash>;
-// to store circles
-using Circles_t = std::unordered_set<Circle, Circle_hash>;
-// to store potentially colliding circles relatively to all arcs of certain circle
-using Colliding_circles_with_arc_t = std::unordered_map<Circle, Circles_t, Circle_hash>;
-// node type for graph
-using Vertex_t = Point;
-// hashing node
-using Vertex_t_hash = Point_hash;
-// to store neighbors for the node in the graph with the cost (distance) of the edges
-using Vertices_t = std::unordered_multimap<Vertex_t, Length_t, Vertex_t_hash>;
-// to store shortest distances - for Dijkstra algorithm
-using Distances_t = std::unordered_map<Vertex_t, Length_t, Vertex_t_hash>;;
-// to store graph - for Dijkstra algorithm
-using Graph_t = std::unordered_map<Vertex_t, Vertices_t, Vertex_t_hash>;
-// to store vertex and its distance in priority queue for Dijkstra algorithm
-using Pair_vertex_distance_t = std::pair<Vertex_t, Length_t>;
-// queue - it is needed for Dijkstra algorithm (breadth first search)
-using Queue_t = std::priority_queue<Pair_vertex_distance_t, std::vector<Pair_vertex_distance_t>, Greater_pair_vertex_distance>;
 
 // compare class for priority queue for Dijkstra algorithm
 struct Greater_pair_vertex_distance {
@@ -364,12 +405,38 @@ struct Greater_pair_vertex_distance {
 		return left.second > right.second;
 	}
 };
+// to store interval of doubles in hash table
+struct Pair_x_interval_hash {
+	std::size_t operator()(const Pair_x_interval& obj) const noexcept {
+		const std::size_t x = Double_hash::call(obj.first);
+		const std::size_t y = Double_hash::call(obj.second);
+		return (x + y) * (x + y + 1) / 2 + y;							        // Cantor's pair
+	}
+	static std::size_t call(const Pair_x_interval& obj) noexcept {
+		static const Pair_x_interval_hash instance;								// singleton
+		return instance(obj);
+	}
+};
 
 
-// Logic to build a graph =======================================================
+// 3 data structures:
+// 1 - all circles sorted by their left end
+// 2 - all x-coordinates where each of the circles starts or ends - sorted
+// 3 - all intervals on x-axis with circles covering each interval - sorted
+// All of these is needed to filter tangents faster - this reduces the amount of 
+// cirlces to be considered as potentially colliding ones with tangent
+struct Filter_tangent_tools {
+	std::vector<Circle> m_circles_sorted_by_left_point_x;
+	std::vector<Coordinate_t> m_ranges_x_sorted;
+	std::unordered_map<Pair_x_interval, Circles_t, Pair_x_interval_hash> m_circles_on_ranges;
+
+	Filter_tangent_tools() {}
+};
+
+// Logic to build a graph ==============================================================
 
 // returns true if (x_1 <= a <= x_2) or (x_2 <= a <= x_1) 
-bool is_between(double a, double x_1, double x_2) {
+bool is_between(Length_t a, Length_t x_1, Length_t x_2) {
 	return (x_1 < a && a < x_2) ||
 		   (x_2 < a && a < x_1) ||
 		   are_equal(a, x_1) ||
@@ -377,13 +444,13 @@ bool is_between(double a, double x_1, double x_2) {
 }
 
 // returns distance between the center of the circle and the line tangent lays on
-double get_distance(const Circle& circle, const Tangent& tangent) {
+Length_t get_distance(const Circle& circle, const Tangent& tangent) {
 	// see distance between point and line
-	const double numerator = std::abs(
+	const Length_t numerator = std::abs(
 		(tangent.m_b.x - tangent.m_a.x) * (tangent.m_a.y - circle.ctr.y) -
 		(tangent.m_a.x - circle.ctr.x) * (tangent.m_b.y - tangent.m_a.y)
 	);
-	const double distance = get_distance(tangent.m_a, tangent.m_b);
+	const Length_t distance = get_distance(tangent.m_a, tangent.m_b);
 
 	return numerator / distance;
 }
@@ -393,13 +460,13 @@ bool is_point_between_points(const Point& point, const Point& point_1, const Poi
 	if (are_equal(point_1.x, point_2.x))
 		return is_between(point.y, point_1.y, point_2.y);
 
-	const double distance = get_distance(point_1, point_2);
+	const Length_t distance = get_distance(point_1, point_2);
 
 	const double k = ((point_2.y - point_1.y) * (point.x - point_1.x) -
 		(point_2.x - point_1.x) * (point.y - point_1.y)) /
 		(distance * distance);
 
-	const double x_n = point.x - k * (point_2.y - point_1.y);
+	const Coordinate_t x_n = point.x - k * (point_2.y - point_1.y);
 
 	return is_between(x_n, point_1.x, point_2.x);
 }
@@ -461,24 +528,13 @@ bool there_is_collision_between_tangent_and_group_of_circles(const Tangent& tang
 	return false;
 }
 
-struct Pair_double_hash {
-	std::size_t operator()(const std::pair<double, double>& obj) const noexcept {
-		const std::size_t x = Double_hash::call(obj.first);
-		const std::size_t y = Double_hash::call(obj.second);
-		return (x + y) * (x + y + 1) / 2 + y;							// Cantor's pair
-	}
-	static std::size_t call(const std::pair<double, double>& obj) noexcept {
-		static const Pair_double_hash instance;								// singleton
-		return instance(obj);
-	}
-};
-
-std::pair<double, double> get_interval(double value_to_find, const std::vector<double>& sorted_values) {
+// returns pair of values between which target value is
+Pair_x_interval get_interval(Coordinate_t value_to_find, const std::vector<Coordinate_t>& sorted_values) {
 	const auto right = std::upper_bound(
 		sorted_values.cbegin(),
 		sorted_values.cend(),
 		value_to_find,
-		[](double value_to_find, double value) {
+		[](Coordinate_t value_to_find, Coordinate_t value) {
 			return value > value_to_find || are_equal(value, value_to_find);
 		}
 	);
@@ -487,17 +543,22 @@ std::pair<double, double> get_interval(double value_to_find, const std::vector<d
 		sorted_values.cbegin() :
 		right - 1u;
 
-	return std::make_pair(*left, *right);
+	return Pair_x_interval(*left, *right);
 }
 
-std::pair<std::vector<Circle>::const_iterator, std::vector<Circle>::const_iterator> 
-get_interval(double value_to_find, const std::vector<Circle>& sorted_circles) {
+using Pair_circle_interval = std::pair<std::vector<Circle>::const_iterator, std::vector<Circle>::const_iterator>;
+
+
+// returns pair of circles (iterators) of sorted vector of circles.
+// The first circle has x-coordinate of its left side smaller, than value, 
+// the second circle has x-coordinate of its left side not greater, than value
+Pair_circle_interval get_interval(Coordinate_t value_to_find, const std::vector<Circle>& sorted_circles) {
 	const auto right = std::upper_bound(
 		sorted_circles.cbegin(),
 		sorted_circles.cend(),
 		value_to_find,
-		[](double value_to_find, const Circle& circle) {
-			return circle.ctr.x - circle.r > value_to_find || 
+		[](Coordinate_t value_to_find, const Circle& circle) {
+			return  (value_to_find < circle.ctr.x - circle.r)  ||
 				are_equal(circle.ctr.x - circle.r, value_to_find);
 		}
 	);
@@ -506,31 +567,18 @@ get_interval(double value_to_find, const std::vector<Circle>& sorted_circles) {
 		sorted_circles.cbegin() :
 		right - 1u;
 
-	return std::make_pair(left, right);
+	return Pair_circle_interval(left, right);
 }
 
-
-struct Filter_tangent_tools {
-	std::vector<Circle> m_circles_sorted_by_left_point_x;
-	std::vector<double> m_ranges_x_sorted;
-	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> m_circles_on_ranges;
-
-	Filter_tangent_tools(
-		const std::vector<Circle>& circles_sorted_by_left_point_x,
-		const std::vector<double>& ranges_x_sorted,
-		const std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash>& circles_on_ranges
-		) 
-		: 
-		m_circles_sorted_by_left_point_x{circles_sorted_by_left_point_x},
-		m_ranges_x_sorted{ranges_x_sorted},
-		m_circles_on_ranges{circles_on_ranges}
-	{}
-	Filter_tangent_tools() {}
-};
-
+// returns three data structures for fast tangent filtering
 Filter_tangent_tools get_filter_tangents_tools(const std::vector<Circle>& circles) {
-	Filter_tangent_tools tools;
-	const std::vector<Circle> circles_sorted_by_left_end = [&]()->std::vector<Circle> {
+	
+
+
+	// vector with circles, but all circles are sorted
+	// by their left side. For example, the first circle is circle
+	// with the smallest coordinate of its left side, the smallest (center - radius)
+	std::vector<Circle> circles_sorted_by_left_end = [&]()->std::vector<Circle> {
 		std::vector<Circle> local_copy(circles);
 		std::sort(
 			local_copy.begin(),
@@ -542,8 +590,11 @@ Filter_tangent_tools get_filter_tangents_tools(const std::vector<Circle>& circle
 		return local_copy;
 	}();
 
-	const std::vector<double> ranges_x_sorted = [&]()->std::vector<double> {
-		std::vector<double> local_copy;
+	// sorted vector with x coordinates, where each circle x-projection starts or ends
+	// every two consequetive values is an x-coordinate interval with 
+	// the same amount of x-projection of circles 
+	std::vector<Coordinate_t> ranges_x_sorted = [&]()->std::vector<Coordinate_t> {
+		std::vector<Coordinate_t> local_copy;
 		local_copy.reserve(circles.size() * 2u);
 		for (const auto& circle : circles) {
 			local_copy.push_back(circle.ctr.x - circle.r);
@@ -552,35 +603,36 @@ Filter_tangent_tools get_filter_tangents_tools(const std::vector<Circle>& circle
 		std::sort(
 			local_copy.begin(),
 			local_copy.end(),
-			[](double x_1, double x_2)->bool {
+			[](Coordinate_t x_1, Coordinate_t x_2)->bool {
 				return x_1 < x_2;
 			}
 		);
 		return local_copy;
 	}();
 
-	std::unordered_map<std::pair<double, double>, Circles_t, Pair_double_hash> circles_on_ranges_x;
+	// contains all circles for each interval of x-coordinate
+	std::unordered_map<Pair_x_interval, Circles_t, Pair_x_interval_hash> circles_on_ranges_x;
 	circles_on_ranges_x.reserve(circles.size() * 2u - 1u);
 	for (auto x = ranges_x_sorted.cbegin(); x < ranges_x_sorted.cend() - 1u; ++x) {
-		const double left  = *x;
-		const double right = *(x + 1);
-		const std::pair<double, double> range(left, right);
-		circles_on_ranges_x.insert(std::pair<std::pair<double, double>, Circles_t>(range, Circles_t()));
+		const Coordinate_t left  = *x;
+		const Coordinate_t right = *(x + 1);
+		const Pair_x_interval range(left, right);
+		circles_on_ranges_x.insert(std::make_pair(range, Circles_t()));
 
 		for (const auto& circle : circles) {
-			const double left_part  = circle.ctr.x - circle.r;
-			const double right_part = circle.ctr.x + circle.r;
+			const Coordinate_t left_part  = circle.ctr.x - circle.r;
+			const Coordinate_t right_part = circle.ctr.x + circle.r;
 			if ((left_part < right || are_equal(left_part, right)) &&
 				(right_part > left || are_equal(right_part, left)))
 				circles_on_ranges_x.at(range).insert(circle);
-
 		}
 	}
-	circles_on_ranges_x.insert(std::pair<std::pair<double, double>, Circles_t>(std::make_pair(*ranges_x_sorted.cbegin(), *ranges_x_sorted.cbegin()), Circles_t()));
+	circles_on_ranges_x.insert(std::make_pair(std::make_pair(*ranges_x_sorted.cbegin(), *ranges_x_sorted.cbegin()), Circles_t()));
 
-	tools.m_circles_sorted_by_left_point_x = circles_sorted_by_left_end;
-	tools.m_ranges_x_sorted				   = ranges_x_sorted;
-	tools.m_circles_on_ranges			   = circles_on_ranges_x;
+	Filter_tangent_tools tools;
+	tools.m_circles_sorted_by_left_point_x = std::move(circles_sorted_by_left_end);
+	tools.m_ranges_x_sorted				   = std::move(ranges_x_sorted);
+	tools.m_circles_on_ranges			   = std::move(circles_on_ranges_x);
 
 	return tools;
 }
@@ -589,7 +641,7 @@ Filter_tangent_tools get_filter_tangents_tools(const std::vector<Circle>& circle
 // returns true if arc can not exist because circle covers it (or its part)
 bool there_is_collision_between_arc_and_circle(const Arc& arc, const Circle& circle) {
 
-	const double distance = get_distance(arc.m_owner->ctr, circle.ctr);
+	const Length_t distance = get_distance(arc.m_owner->ctr, circle.ctr);
 
 
 	if (distance > arc.m_owner->r + circle.r ||               // arc and circle not intersect 
@@ -600,15 +652,15 @@ bool there_is_collision_between_arc_and_circle(const Arc& arc, const Circle& cir
 
 	// circle covers circumference of arc's owner -> there might be collision
 
-	const double angle_b = get_angle_with_x_axis(arc.m_b, arc.m_owner->ctr);
-	const double angle = get_angle_with_x_axis(circle.ctr, arc.m_owner->ctr);
-	const double angle_a = get_angle_with_x_axis(arc.m_a, arc.m_owner->ctr);
+	const Angle_t angle_b = get_angle_with_x_axis(arc.m_b, arc.m_owner->ctr);
+	const Angle_t angle = get_angle_with_x_axis(circle.ctr, arc.m_owner->ctr);
+	const Angle_t angle_a = get_angle_with_x_axis(arc.m_a, arc.m_owner->ctr);
 
 	// considering angles only from 0 to 2*pi
-	const double angle_a_rotated = angle_a > angle_b ?
+	const Angle_t angle_a_rotated = angle_a > angle_b ?
 		angle_a - angle_b : 2.0 * g_pi + angle_a - angle_b;
-	const double angle_b_rotated = 0.0;
-	const double angle_rotated = angle > angle_b ?
+	const Angle_t angle_b_rotated = 0.0;
+	const Angle_t angle_rotated = angle > angle_b ?
 		angle - angle_b : 2.0 * g_pi + angle - angle_b;
 
 
@@ -653,7 +705,7 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 		return {};
 
 	// one circle is inside another one or have only one common point - no tangents
-	const double distance_between_circles = get_distance(circle_1.ctr, circle_2.ctr);
+	const Length_t distance_between_circles = get_distance(circle_1.ctr, circle_2.ctr);
 	if (are_equal(distance_between_circles + circle_1.r, circle_2.r) ||
 		are_equal(distance_between_circles + circle_2.r, circle_1.r) ||
 		distance_between_circles + circle_1.r < circle_2.r ||
@@ -671,21 +723,21 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 	const auto& circle_a =
 		circle_2.ctr.y < circle_1.ctr.y ? circle_2 : circle_1;   // lower circle
 
-	const double r_a = circle_a.r;
-	const double r_b = circle_b.r;
-	const double xo_a = circle_a.ctr.x;
-	const double yo_a = circle_a.ctr.y;
-	const double xo_b = circle_b.ctr.x;
-	const double yo_b = circle_b.ctr.y;
+	const Length_t r_a = circle_a.r;
+	const Length_t r_b = circle_b.r;
+	const Coordinate_t xo_a = circle_a.ctr.x;
+	const Coordinate_t yo_a = circle_a.ctr.y;
+	const Coordinate_t xo_b = circle_b.ctr.x;
+	const Coordinate_t yo_b = circle_b.ctr.y;
 
 
-	const double angle_sum_outer = std::asin((r_b - r_a) / distance_between_circles) +
+	const Angle_t angle_sum_outer = std::asin((r_b - r_a) / distance_between_circles) +
 		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_subtraction_outer = std::asin((r_b - r_a) / distance_between_circles) -
+	const Angle_t angle_subtraction_outer = std::asin((r_b - r_a) / distance_between_circles) -
 		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_sum_inner = std::asin((-r_b - r_a) / distance_between_circles) +
+	const Angle_t angle_sum_inner = std::asin((-r_b - r_a) / distance_between_circles) +
 		std::asin((xo_b - xo_a) / distance_between_circles);
-	const double angle_subtraction_inner = std::asin((-r_b - r_a) / distance_between_circles) -
+	const Angle_t angle_subtraction_inner = std::asin((-r_b - r_a) / distance_between_circles) -
 		std::asin((xo_b - xo_a) / distance_between_circles);
 
 	Tangents_t tangents;
@@ -745,96 +797,63 @@ Tangents_t get_tangents(const Circle& circle_1, const Circle& circle_2) {
 	return tangents;
 }
 
-// calculates distance which can not be exceeded during passing through this graph 
-double get_unreachable_maximum(const Graph_t& graph) {
-	double maximum = 0.0;
-	for (const auto& [vertex, neighbors] : graph)
-		for (const auto& [neighbor, distance] : neighbors)
-			maximum += distance;
 
-	return maximum * 10.0;
-}
-
-// dijkstra algorithm
-double dijkstra_tiptoe_priority_queue(const Graph_t& graph, const Vertex_t& start, const Vertex_t& finish) {
-	// modification for this particular task: 
-	// if there is no tangent to start and/or finish point(s), 
-	// it is (they are) not included in the graph 
-	if (graph.find(start) == graph.cend() || graph.find(finish) == graph.cend())
-		return -1.0;
-
-	const double maximum = get_unreachable_maximum(graph);
-
-	Distances_t distances;
-	for (const auto& [vertex, _] : graph)
-		distances.insert(std::pair<Vertex_t, double>(vertex, maximum));
-
-	distances.at(start) = 0.0;
-
-	Queue_t queue;
-	queue.push(std::make_pair(start, 0.0));
-
-	while (!queue.empty()) {
-		const auto vertex = queue.top();
-		queue.pop();
-
-		for (const auto& [neighbor, edge_weight] : graph.at(vertex.first)) {
-			if (distances.at(vertex.first) + edge_weight < distances.at(neighbor)) {
-				distances.at(neighbor) = distances.at(vertex.first) + edge_weight;
-				queue.push(std::make_pair(neighbor, distances.at(neighbor)));
-			}
-		}
-	}
-	return are_equal(distances.at(finish), maximum) ? -1.0 : distances.at(finish);
-}
-
-
+// returns true if tangent is covered by some circle. 
+// Decides which circles should be considered using 'tools'.
+// This is the logic of filtering tangent faster 
+// than just using brute force method
 bool is_tangent_existing(
 	const Tangent& tangent, 
-	const Filter_tangent_tools& tools,
-	const std::vector<Circle>& circles
+	const Filter_tangent_tools& tools
 ) {
 
-	const double left_end_of_tangent =
+	const Coordinate_t left_end_of_tangent =
 		(tangent.m_a.x < tangent.m_b.x) ?
-		tangent.m_a.x :
-		tangent.m_b.x;
+		 tangent.m_a.x :
+		 tangent.m_b.x;
 
-
-	const double right_end_of_tangent =
+	const Coordinate_t right_end_of_tangent =
 		(tangent.m_a.x > tangent.m_b.x) ?
-		tangent.m_a.x :
-		tangent.m_b.x; // if m_a.x and m_b.x are equal, what will be?
+		 tangent.m_a.x :
+		 tangent.m_b.x; 
 
-	const auto start = get_interval(
+	const auto begin_for_circles_to_consider = get_interval(
 		left_end_of_tangent, 
 		tools.m_circles_sorted_by_left_point_x
 	).first;
-	const auto finish = get_interval(
+
+	const auto end_for_circles_to_consider = get_interval(
 		right_end_of_tangent, 
 		tools.m_circles_sorted_by_left_point_x
 	).second;
 
-
-	if (there_is_collision_between_tangent_and_group_of_circles(tangent, start, finish))
+	if (
+		there_is_collision_between_tangent_and_group_of_circles(
+			tangent, 
+			begin_for_circles_to_consider, 
+			end_for_circles_to_consider
+		)
+	)
 		return false;
 		
-		
-
-	const auto start1_finish1 = get_interval(
+	const auto interval_for_circles_covering_left_end = get_interval(
 		left_end_of_tangent, 
 		tools.m_ranges_x_sorted
 	);
 
-	const Circles_t& circles_covering_left_end = tools.m_circles_on_ranges.at(start1_finish1);
+	const Circles_t& circles_covering_left_end = 
+		tools.m_circles_on_ranges.at(interval_for_circles_covering_left_end);
 
-	if (there_is_collision_between_tangent_and_group_of_circles(tangent, circles_covering_left_end))
+	if (
+		there_is_collision_between_tangent_and_group_of_circles(
+			tangent, 
+			circles_covering_left_end
+		)
+	)
 		return false;
 
 	return true;
 }
-
-
 
 // adds one tangent to graph
 void add_tangent_to_graph(const Tangent& tangent, Graph_t& graph) {
@@ -847,12 +866,15 @@ void add_tangent_to_graph(const Tangent& tangent, Graph_t& graph) {
 	graph.at(tangent.m_b).emplace(std::make_pair(tangent.m_a, tangent.m_length));
 }
 
-
+// adds both ends of tangent to storage where all points have its own circle as a key
 void add_tangent_to_points_on_circles(const Tangent& tangent, Points_on_circles_t& points_on_circles) {
 	points_on_circles.at(*tangent.m_circle_a).push_back(tangent.m_a);
 	points_on_circles.at(*tangent.m_circle_b).push_back(tangent.m_b);
 }
 
+// creates all arcs between this point and all other points on this circle,
+// filters all arcs (removes arcs which are covered by other circles) 
+// and adds to graph 
 void create_arcs_for_this_point_filter_and_add_to_graph(
 	Graph_t& graph,
 	const Point& point,
@@ -867,30 +889,30 @@ void create_arcs_for_this_point_filter_and_add_to_graph(
 
 		if (Point_hash::call(*another_point) != Point_hash::call(point)) {
 
-			bool there_is_collision_between_tangent_and_group_of_circles{ false };
+			bool is_arc_existing{ true };
 			const Arc ab(*another_point, point, circle);
 			for (const auto& colliding_circle : colliding_circles.at(circle)) {
 				if (there_is_collision_between_arc_and_circle(ab, colliding_circle)) {
-					there_is_collision_between_tangent_and_group_of_circles = true;
+					is_arc_existing = false;
 					break;
 				}
 			}
 
-			if (!there_is_collision_between_tangent_and_group_of_circles) {
+			if (is_arc_existing) {
 				graph.at(ab.m_a).emplace(std::make_pair(ab.m_b, ab.m_length));
 				graph.at(ab.m_b).emplace(std::make_pair(ab.m_a, ab.m_length));
 			}
 
-			there_is_collision_between_tangent_and_group_of_circles = false;
+			is_arc_existing = true;
 			const Arc ba(point, *another_point, circle);
 			for (const auto& colliding_circle : colliding_circles.at(circle)) {
 				if (there_is_collision_between_arc_and_circle(ba, colliding_circle)) {
-					there_is_collision_between_tangent_and_group_of_circles = true;
+					is_arc_existing = false;
 					break;
 				}
 			}
 
-			if (!there_is_collision_between_tangent_and_group_of_circles) {
+			if (is_arc_existing) {
 				graph.at(ba.m_a).emplace(std::make_pair(ba.m_b, ba.m_length));
 				graph.at(ba.m_b).emplace(std::make_pair(ba.m_a, ba.m_length));
 			}
@@ -903,7 +925,6 @@ void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_thi
 	const Circle& circle_1,
 	const Circle& circle_2,
 	const Filter_tangent_tools& tools,
-	const std::vector<Circle>& circles,
 	const Colliding_circles_with_arc_t& colliding_circles_with_arc,
 	Points_on_circles_t& points_on_circles,
 	Graph_t& graph
@@ -911,7 +932,7 @@ void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_thi
 	const auto tangents = get_tangents(circle_1, circle_2);
 
 	for (auto tangent = tangents.cbegin(); tangent != tangents.cend(); ++tangent) {
-		if (is_tangent_existing(*tangent, tools, circles)) {
+		if (is_tangent_existing(*tangent, tools)) {
 			add_tangent_to_graph(
 				*tangent, 
 				graph
@@ -940,75 +961,122 @@ void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_thi
 	}
 }
 
+// returns vector of circles with added start and finish points as circles with zero radius
+std::vector<Circle> add_start_and_finish_to_circles(const Point& a, const Point& b, const std::vector<Circle>& circles) {
+	auto local_copy = circles;
+	local_copy.emplace_back(a, 0.0);
+	local_copy.emplace_back(b, 0.0);
+	return local_copy;
+}
 
+// returns hash table with empty vectors of points with circle as a key
+Points_on_circles_t get_points_on_circles(const std::vector<Circle>& circles) {
+	Points_on_circles_t points_on_circles;
 
-void create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph(
-	const std::vector<Circle>& circles,
-	const Filter_tangent_tools& tools,
-	const Colliding_circles_with_arc_t& colliding_circles_with_arc,
-	Points_on_circles_t& points_on_circles,
-	Graph_t& graph
-) {
-	for (auto circle_1 = circles.cbegin(); circle_1 != circles.cend(); ++circle_1) {
-		for (auto circle_2 = circle_1 + 1u; circle_2 != circles.cend(); ++circle_2) {
+	for (const auto& circle : circles) {
+		points_on_circles.emplace(std::make_pair(circle, std::vector<Point>()));
+		points_on_circles.at(circle).reserve(4u * circles.size());
+	}
+
+	return points_on_circles;
+}
+
+// returns graph for this entire task
+Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
+	
+	// for each circle gathers covering it circles - needed to filter arcs faster
+	// This reduces the amount of circles to be considered as potentially colliding with arc
+	const auto colliding_circles_with_each_circle = get_colliding_circles_with_arc(circles);
+	
+	// to filter tangents faster
+	const auto tools_to_filter_tangents_faster = get_filter_tangents_tools(circles);
+	
+	// graph
+	Graph_t graph;
+
+	// all circles with start and finish points as circles with zero radius
+	const auto circles_copy = add_start_and_finish_to_circles(a, b, circles);
+	
+	// all points binded to their own circles
+	// It is needed to generate arcs on each circle
+	auto points_on_circles = get_points_on_circles(circles_copy);
+
+	// considering every two circles (including start and finish points)
+	// finding all tangents between every two of them, filtering tangents,
+	// finding all arcs for each circle, filtering arcs, then adding tangents
+	// and arcs to graph
+	for (auto circle_1 = circles_copy.cbegin(); circle_1 != circles_copy.cend(); ++circle_1) {
+		for (auto circle_2 = circle_1 + 1u; circle_2 != circles_copy.cend(); ++circle_2) {
 			create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph_for_this_pair_of_circles(
 				*circle_1,
 				*circle_2,
-				tools,
-				circles,
-				colliding_circles_with_arc,
+				tools_to_filter_tangents_faster,
+				colliding_circles_with_each_circle,
 				points_on_circles,
 				graph
 			);
 		}
 	}
-}
 
-// returns graph for this entire task
-Graph_t get_graph(const Point& a, const Point& b, const std::vector <Circle>& circles) {
-	// all circles with start and finish points as circles with zero radius
-	
-	// TODO: do that in individual function
-	const auto circles_copy = [&]() {
-		auto local_copy = circles;
-		local_copy.emplace_back(a, 0.0);
-		local_copy.emplace_back(b, 0.0);
-		return local_copy;
-	}();
-
-
-	const auto tools = get_filter_tangents_tools(circles);
-	Points_on_circles_t points_on_circles;
-	
-	// TODO: do that in individual function
-	for (const auto &circle : circles_copy) {
-		points_on_circles.emplace(std::make_pair(circle, std::vector<Point>()));
-		points_on_circles.at(circle).reserve(4u * circles_copy.size());
-	}
-	
-	
-	const auto colliding_circles_with_this_circle = get_colliding_circles_with_arc(circles_copy);
-
-	Graph_t graph;
-	create_tangents_filter_add_to_graph_create_arcs_filter_add_to_graph(
-		circles_copy,
-		tools,
-		colliding_circles_with_this_circle,
-		points_on_circles,
-		graph
-	);
 		
 	return graph;
 }
 
-double tiptoe_through_the_circles(Point a, Point b, const std::vector<Circle>& circles) {
+// Logic to find the shortest path =====================================================
+
+// calculates distance which can not be exceeded during passing through this graph 
+Length_t get_unreachable_maximum(const Graph_t& graph) {
+	Length_t maximum = 0.0;
+	for (const auto& [vertex, neighbors] : graph)
+		for (const auto& [neighbor, distance] : neighbors)
+			maximum += distance;
+
+	return maximum * 10.0;
+}
+
+// dijkstra algorithm
+Length_t dijkstra_tiptoe_priority_queue(const Graph_t& graph, const Vertex_t& start, const Vertex_t& finish) {
+	// modification for this particular task: 
+	// if there is no tangent to start and/or finish point(s), 
+	// it is (they are) not included in the graph 
+	if (graph.find(start) == graph.cend() || graph.find(finish) == graph.cend())
+		return -1.0;
+
+	const Length_t maximum = get_unreachable_maximum(graph);
+
+	Distances_t distances;
+	for (const auto& [vertex, _] : graph)
+		distances.insert(std::pair<Vertex_t, Length_t>(vertex, maximum));
+
+	distances.at(start) = 0.0;
+
+	Queue_t queue;
+	queue.push(std::make_pair(start, 0.0));
+
+	while (!queue.empty()) {
+		const auto vertex = queue.top();
+		queue.pop();
+
+		for (const auto& [neighbor, edge_weight] : graph.at(vertex.first)) {
+			if (distances.at(vertex.first) + edge_weight < distances.at(neighbor)) {
+				distances.at(neighbor) = distances.at(vertex.first) + edge_weight;
+				queue.push(std::make_pair(neighbor, distances.at(neighbor)));
+			}
+		}
+	}
+	return are_equal(distances.at(finish), maximum) ? -1.0 : distances.at(finish);
+}
+
+
+Length_t tiptoe_through_the_circles(Point a, Point b, const std::vector<Circle>& circles) {
+	if (!circles.size())
+		return get_distance(a, b);
 	Timer timer;
 	const auto graph = get_graph(a, b, circles);
 	g_graph += timer.elapsed();
 	std::cout << "graph = \t\t" << timer.elapsed() << '\n';
 	timer.reset();
-	//const double result = dijkstra_tiptoe(graph, a, b);  // 4.28 c, 4.66 c
-	const double result = dijkstra_tiptoe_priority_queue(graph, a, b);  // 3.00 c, 2.92 c, 2.64 c, 2.24 c, 2.43 c
+	const Length_t result = dijkstra_tiptoe_priority_queue(graph, a, b);  // 3.00 c, 2.92 c, 2.64 c, 2.24 c, 2.43 c
 	g_dijkstra += timer.elapsed();
 	std::cout << "dijkstra = \t\t" << timer.elapsed() << '\n';
 	return result;
@@ -1034,7 +1102,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	result_expected = 9.11821650244;
 
 	timer.reset();
-	//result_actual = algorithm(a1, b1, circles);
+	result_actual = algorithm(a1, b1, circles);
 	//std::cout << "time ================================================= " << timer.elapsed() << '\n';
 	std::cout << "time = " << timer.elapsed() << '\n';
 
@@ -1054,7 +1122,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	result_expected = 19.0575347577;
 
 	timer.reset();
-	//result_actual = algorithm(a2, b2, circles);
+	result_actual = algorithm(a2, b2, circles);
 	//std::cout << "time ================================================= " << timer.elapsed() << '\n';
 	std::cout << "time = " << timer.elapsed() << '\n';
 
@@ -1071,7 +1139,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	result_expected = 5.0;
 
 	timer.reset();
-	//result_actual = algorithm(a3, b3, circles);
+	result_actual = algorithm(a3, b3, circles);
 	//std::cout << "time ================================================= " << timer.elapsed() << '\n';
 	std::cout << "time = " << timer.elapsed() << '\n';
 
@@ -1093,7 +1161,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	result_expected = -1.0;
 
 	timer.reset();
-	//result_actual = algorithm(a4, b4, circles);
+	result_actual = algorithm(a4, b4, circles);
 	//std::cout << "time ================================================= " << timer.elapsed() << '\n';
 	std::cout << "time = " << timer.elapsed() << '\n';
 
@@ -1115,7 +1183,7 @@ void test_tiptoe_through_the_circles(double (*algorithm)(Point, Point, const std
 	result_expected = 19.0575347577;
 
 	timer.reset();
-	//result_actual = algorithm(a5, b5, circles);
+	result_actual = algorithm(a5, b5, circles);
 	//std::cout << "time ================================================= " << timer.elapsed() << '\n';
 
 	std::cout << "test  #5: " <<
